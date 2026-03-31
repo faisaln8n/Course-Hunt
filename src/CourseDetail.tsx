@@ -67,8 +67,7 @@ const CountdownTimer = ({ targetDate }: { targetDate: string }) => {
 };
 
 export default function CourseDetail() {
-  const { id } = useParams<{ id: string }>();
-  const courseId = id;
+  const { slug } = useParams<{ slug: string }>();
   const [course, setCourse] = useState<Course | undefined>(undefined);
   const [activeImage, setActiveImage] = useState(0);
   const { user, profile, logout } = useUserAuth();
@@ -89,18 +88,33 @@ export default function CourseDetail() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewImagePreview, setReviewImagePreview] = useState<string | null>(null);
   const [visibleReviewsCount, setVisibleReviewsCount] = useState(20);
+  const courseId = course?.id;
+
+  const slugify = (text: string) => {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
 
   useEffect(() => {
     const loadInitialData = async () => {
-      const [fetchedCourse, fetchedSettings, allCourses, fetchedReviews] = await Promise.all([
-        courseService.getCourseById(courseId || ''),
-        settingsService.getSettings(),
+      const [allCourses, fetchedSettings] = await Promise.all([
         courseService.getCourses(),
-        courseId ? courseService.getReviews(courseId) : Promise.resolve([])
+        settingsService.getSettings()
       ]);
-      setCourse(fetchedCourse);
+      
+      const foundCourse = allCourses.find(c => slugify(c.title) === slug);
+      setCourse(foundCourse);
       setSettings(fetchedSettings);
-      setReviews(fetchedReviews);
+      
+      if (foundCourse) {
+        const fetchedReviews = await courseService.getReviews(foundCourse.id);
+        setReviews(fetchedReviews);
+      }
+      
       setCartCount(cartService.getCartCount());
       
       const items = cartService.getCartItems()
@@ -108,10 +122,6 @@ export default function CourseDetail() {
         .filter((c): c is Course => !!c);
       setCartItems(items);
       setWishlistItems(wishlistService.getWishlistItems());
-
-      if (courseId) {
-        analyticsService.recordClick(courseId);
-      }
     };
 
     const handleCartUpdate = async () => {
@@ -128,12 +138,13 @@ export default function CourseDetail() {
     };
     
     const handleCoursesUpdate = async () => {
-      const [fetchedCourse, fetchedReviews] = await Promise.all([
-        courseService.getCourseById(courseId || ''),
-        courseId ? courseService.getReviews(courseId) : Promise.resolve([])
-      ]);
-      setCourse(fetchedCourse);
-      setReviews(fetchedReviews);
+      const allCourses = await courseService.getCourses();
+      const foundCourse = allCourses.find(c => slugify(c.title) === slug);
+      setCourse(foundCourse);
+      if (foundCourse) {
+        const fetchedReviews = await courseService.getReviews(foundCourse.id);
+        setReviews(fetchedReviews);
+      }
     };
 
     const handleSettingsUpdate = async () => {
@@ -154,7 +165,7 @@ export default function CourseDetail() {
       window.removeEventListener('courses-updated', handleCoursesUpdate);
       window.removeEventListener('settings-updated', handleSettingsUpdate);
     };
-  }, [id]);
+  }, [slug]);
 
   useEffect(() => {
     if (user && !newReview.user_name) {
@@ -187,8 +198,8 @@ export default function CourseDetail() {
   const handleWhatsAppClick = () => {
     const phoneNumber = "+8801314493061";
     const currentUrl = window.location.href;
-    const userEmailText = profile?.email ? `\nUser Email: ${profile.email}` : (user?.email ? `\nUser Email: ${user.email}` : '');
-    const message = `Course Name: ${course.title}\nPrice: ${course.price}\nLink: ${currentUrl}${userEmailText}`;
+    const userEmailText = profile?.email ? `\n*User Email:* ${profile.email}` : (user?.email ? `\n*User Email:* ${user.email}` : '');
+    const message = `*I love this course I want to buy it!* 🚀\n\n*Course Name:* *${course.title}*\n*Price:* *${course.price}*\n*Link:* ${currentUrl}${userEmailText}`;
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');
   };
@@ -270,7 +281,7 @@ export default function CourseDetail() {
  
             {settings.announcementLink && (
               <a 
-                href={settings.announcementLink} 
+                href={settings.announcementLink.startsWith('http') || settings.announcementLink.startsWith('/') ? settings.announcementLink : `https://${settings.announcementLink}`} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="bg-white text-[#dc2743] px-2 md:px-6 py-0.5 md:py-1.5 rounded-md md:rounded-xl text-[9px] md:text-sm font-black hover:bg-opacity-90 transition-all flex items-center gap-0.5 md:gap-2 shadow-lg hover:scale-105 active:scale-95 whitespace-nowrap shrink-0"
@@ -943,18 +954,29 @@ export default function CourseDetail() {
                       ) : 0;
                       const total = subtotal - discount;
                       
-                      let message = `*New Order from Course Hunt*\n\n`;
+                      let message = `*I love this course I want to buy it!* 🚀\n\n`;
+                      message += `*New Order from Course Hunt*\n\n`;
                       message += `*Items:*\n`;
                       cartItems.forEach((item, index) => {
-                        message += `${index + 1}. ${item.title} - ${item.price}\n`;
+                        const slug = item.title
+                          .toLowerCase()
+                          .trim()
+                          .replace(/[^\w\s-]/g, '')
+                          .replace(/[\s_-]+/g, '-')
+                          .replace(/^-+|-+$/g, '');
+                        const courseUrl = `${window.location.origin}/course/${slug}`;
+                        message += `${index + 1}. *${item.title}* - *${item.price}*\n   Link: ${courseUrl}\n`;
                       });
                       
-                      message += `\n*Subtotal:* $${subtotal.toFixed(2)}`;
+                      const userEmailText = profile?.email ? `\n*User Email:* ${profile.email}` : (user?.email ? `\n*User Email:* ${user.email}` : '');
+                      message += userEmailText;
+                      
+                      message += `\n*Subtotal:* *${subtotal.toFixed(2)}*`;
                       if (appliedCoupon) {
-                        message += `\n*Coupon:* ${appliedCoupon.code} (-${appliedCoupon.discount}%)`;
-                        message += `\n*Discount:* -$${discount.toFixed(2)}`;
+                        message += `\n*Coupon:* *${appliedCoupon.code}* (-${appliedCoupon.discount}%)`;
+                        message += `\n*Discount:* -*${discount.toFixed(2)}*`;
                       }
-                      message += `\n*Total Price:* $${total.toFixed(2)}`;
+                      message += `\n*Total Price:* *${total.toFixed(2)}*`;
                       
                       const encodedMessage = encodeURIComponent(message);
                       window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');

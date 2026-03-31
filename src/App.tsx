@@ -68,7 +68,7 @@ export default function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/course/:id" element={<CourseDetail />} />
+          <Route path="/course/:slug" element={<CourseDetail />} />
           <Route path="/about" element={<About />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Login />} />

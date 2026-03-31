@@ -78,6 +78,7 @@ export default function AdminDashboard() {
   const [fileImagesPreviews, setFileImagesPreviews] = useState<string[]>([]);
   
   const [selectedCourses, setSelectedCourses] = useState<(string | number)[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -297,6 +298,20 @@ export default function AdminDashboard() {
   const toggleSelectCourse = (id: string | number) => {
     setSelectedCourses(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllUsers = (filteredUsers: UserProfile[]) => {
+    if (selectedUsers.length === filteredUsers.length && filteredUsers.length > 0) {
+      setSelectedUsers([]);
+    } else {
+      setSelectedUsers(filteredUsers.map(u => u.uid));
+    }
+  };
+
+  const toggleSelectUser = (uid: string) => {
+    setSelectedUsers(prev => 
+      prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
     );
   };
 
@@ -699,7 +714,46 @@ export default function AdminDashboard() {
         {/* User List */}
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/50 px-6 py-4">
-            <h2 className="font-bold text-slate-900">User Directory</h2>
+            <div className="flex items-center gap-4">
+              <h2 className="font-bold text-slate-900">User Directory</h2>
+              {selectedUsers.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                    {selectedUsers.length} Selected
+                  </span>
+                  <button
+                    onClick={() => {
+                      const selectedEmails = users
+                        .filter(u => selectedUsers.includes(u.uid))
+                        .map(u => u.email)
+                        .join(',');
+                      window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${selectedEmails}`, '_blank');
+                    }}
+                    className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700"
+                  >
+                    <Mail className="h-3 w-3" />
+                    Bulk Email
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (window.confirm(`Are you sure you want to block ${selectedUsers.length} users?`)) {
+                        try {
+                          await Promise.all(selectedUsers.map(uid => userService.updateUserByAdmin(uid, { status: 'blocked' })));
+                          setSelectedUsers([]);
+                          toast.success('Users blocked successfully');
+                        } catch (error) {
+                          toast.error('Failed to block some users');
+                        }
+                      }
+                    }}
+                    className="flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-700"
+                  >
+                    <Ban className="h-3 w-3" />
+                    Bulk Block
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-2 text-sm text-slate-500">
               <Clock className="h-4 w-4" />
               Real-time updates enabled
@@ -709,6 +763,14 @@ export default function AdminDashboard() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <th className="px-6 py-4 w-10">
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      checked={filteredUsers.length > 0 && selectedUsers.length === filteredUsers.length}
+                      onChange={() => toggleSelectAllUsers(filteredUsers)}
+                    />
+                  </th>
                   <th className="px-6 py-4">User</th>
                   <th className="px-6 py-4">Role</th>
                   <th className="px-6 py-4">Status</th>
@@ -719,7 +781,15 @@ export default function AdminDashboard() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredUsers.map((user) => (
-                  <tr key={user.uid} className="group transition-colors hover:bg-slate-50/50">
+                  <tr key={user.uid} className={cn("group transition-colors hover:bg-slate-50/50", selectedUsers.includes(user.uid) && "bg-blue-50/30")}>
+                    <td className="px-6 py-4">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        checked={selectedUsers.includes(user.uid)}
+                        onChange={() => toggleSelectUser(user.uid)}
+                      />
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 overflow-hidden rounded-full bg-slate-100">
@@ -779,7 +849,7 @@ export default function AdminDashboard() {
                           </button>
                         )}
                         <button 
-                          onClick={() => window.location.href = `mailto:${user.email}`}
+                          onClick={() => window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${user.email}`, '_blank')}
                           className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
                           title="Contact User"
                         >

@@ -3,9 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Menu, X, Star, ShoppingCart, Plus, Check, Tag, Trash2, Filter, ChevronDown, User, LogOut, Heart, Target, Megaphone, ChevronRight } from 'lucide-react';
-import { SlideToUnlock } from './components/ui/reward-card';
-import Confetti from 'react-confetti';
-import { useWindowSize } from 'react-use';
 import { Link, useNavigate } from 'react-router-dom';
 import { analyticsService } from './services/analyticsService';
 import { cartService } from './services/cartService';
@@ -127,10 +124,6 @@ export default function Home() {
   const [extraFilter, setExtraFilter] = useState<string>("All");
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
-  const [showWelcomePopup, setShowWelcomePopup] = useState<boolean>(() => {
-    return !sessionStorage.getItem('welcome_popup_shown');
-  });
-  const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [isBannerVisible, setIsBannerVisible] = useState<boolean>(true);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [cartCount, setCartCount] = useState<number>(cartService.getCartCount());
@@ -142,7 +135,6 @@ export default function Home() {
   const [couponCode, setCouponCode] = useState<string>('');
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [showAllCategories, setShowAllCategories] = useState<boolean>(false);
-  const { width, height } = useWindowSize();
 
   const dotsRef = useRef<Dot[]>([]);
   const gridRef = useRef<Record<string, number[]>>({});
@@ -449,128 +441,12 @@ export default function Home() {
     filteredCourses.sort((a, b) => parsePrice(b.price) - parsePrice(a.price));
   }
 
-  const ITEMS_PER_PAGE = width < 768 ? 12 : 16;
+  const ITEMS_PER_PAGE = typeof window !== 'undefined' && window.innerWidth < 768 ? 12 : 16;
   const totalPages = Math.ceil(filteredCourses.length / ITEMS_PER_PAGE);
   const currentCourses = filteredCourses.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  const handleUnlock = () => {
-    setIsUnlocked(true);
-    sessionStorage.setItem('welcome_popup_shown', 'true');
-    // Automatically close the welcome popup after the congratulation animation
-    setTimeout(() => {
-      setShowWelcomePopup(false);
-    }, 2500);
-  };
-
-  const UnlockedMessage = () => (
-    <motion.div 
-      className="mt-6 flex flex-col items-center justify-center space-y-2"
-      initial={{ scale: 0.5, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: "spring", stiffness: 260, damping: 20 }}
-    >
-      <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ delay: 0.2, type: "spring", stiffness: 500, damping: 15 }}
-        className="flex h-16 w-16 items-center justify-center rounded-full bg-[#FF6B35] shadow-lg shadow-[#FF6B35]/20"
-      >
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      </motion.div>
-      <div className="text-center">
-        <p className="text-xl font-black shimmer-text">Access Granted!</p>
-        <p className="text-sm text-gray-500 font-medium">Redirecting to Course Hunt...</p>
-      </div>
-    </motion.div>
-  );
-
-  const GiftIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="8" width="18" height="4" rx="1" />
-      <path d="M12 12v8" />
-      <path d="M19 12v8H5v-8" />
-      <path d="M19 8a4 4 0 0 0-8 0" />
-      <path d="M5 8a4 4 0 0 1 8 0" />
-    </svg>
-  );
-
   return (
     <>
-      {/* Welcome Popup */}
-      <AnimatePresence>
-        {showWelcomePopup && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => setShowWelcomePopup(false)}
-          >
-            {isUnlocked && (
-              <Confetti 
-                width={width} 
-                height={height} 
-                recycle={false} 
-                numberOfPieces={800} 
-                gravity={0.15}
-                colors={['#FF6B35', '#E85D04', '#ffffff', '#000000']}
-                tweenDuration={5000}
-              />
-            )}
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              transition={{ type: "spring", duration: 0.5 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="relative">
-                <SlideToUnlock
-                  onUnlock={handleUnlock}
-                  unlockedContent={<UnlockedMessage />}
-                  shimmer={true}
-                  sliderText="Swipe to enter the website"
-                >
-                  <div className="text-center">
-                    <motion.div 
-                      className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#E85D04] shadow-lg text-white"
-                      animate={{
-                        scale: [1, 1.05, 1],
-                      }}
-                      transition={{
-                        duration: 3,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                      }}
-                    >
-                      <GiftIcon className="h-12 w-12 text-white" />
-                    </motion.div>
-                    <motion.h2 
-                      className="text-2xl font-extrabold tracking-tight text-gray-900"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
-                    >
-                      Welcome to Course Hunt!
-                    </motion.h2>
-                    <motion.p 
-                      className="mt-3 text-sm text-gray-600 leading-relaxed"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
-                    >
-                      Thank you for visiting! We're excited to have you here. Discover amazing courses and unlock your potential.
-                    </motion.p>
-                  </div>
-                </SlideToUnlock>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <div className="min-h-screen bg-white text-gray-900 relative overflow-x-hidden">
       <canvas ref={canvasRef} className="absolute inset-0 z-0 pointer-events-none opacity-100" />
       <div className="absolute inset-0 z-1 pointer-events-none bg-gradient-to-b from-white/5 via-white/30 to-white/90" />
@@ -601,7 +477,7 @@ export default function Home() {
  
             {settings.announcementLink && (
               <a 
-                href={settings.announcementLink} 
+                href={settings.announcementLink.startsWith('http') || settings.announcementLink.startsWith('/') ? settings.announcementLink : `https://${settings.announcementLink}`} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="bg-white text-[#dc2743] px-2 md:px-6 py-0.5 md:py-1.5 rounded-md md:rounded-xl text-[9px] md:text-sm font-black hover:bg-opacity-90 transition-all flex items-center gap-0.5 md:gap-2 shadow-lg hover:scale-105 active:scale-95 whitespace-nowrap shrink-0"
@@ -844,7 +720,7 @@ export default function Home() {
           >
             {(() => {
               const allCats = ["All", ...settings.categories];
-              const isMobile = width < 768;
+              const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
               const limit = 5;
               const hasMore = allCats.length > limit;
               const displayedCats = (isMobile && !showAllCategories && hasMore) 
@@ -954,137 +830,146 @@ export default function Home() {
 
         <section className="container mx-auto px-4 md:px-6 lg:px-8 mb-16">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {currentCourses.map((course, index) => (
-              <Link 
-                to={`/course/${course.id}`} 
-                key={course.id}
-                onClick={async () => {
-                  await analyticsService.recordClick(course.id);
-                }}
-              >
-                <motion.div
-                  initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  whileHover={{ y: -5 }}
-                  transition={{ 
-                    duration: 0.5, 
-                    delay: index * 0.08,
-                    ease: "easeOut"
+            {currentCourses.map((course, index) => {
+              const slug = course.title
+                .toLowerCase()
+                .trim()
+                .replace(/[^\w\s-]/g, '')
+                .replace(/[\s_-]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+              
+              return (
+                <Link 
+                  to={`/course/${slug}`} 
+                  key={course.id}
+                  onClick={async () => {
+                    await analyticsService.recordClick(course.id);
                   }}
-                  className="bg-white border-2 border-black rounded-xl overflow-hidden shadow-sm hover:shadow-xl hover:border-[#FF6B35]/30 transition-all duration-300 cursor-pointer h-full flex flex-col group"
                 >
-                  <div className="relative h-32 md:h-48 overflow-hidden">
-                    <img
-                      src={course.image || null}
-                      alt={course.title}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    />
-                    {course.additionalChoices === 'Popular' && (
-                      <motion.div 
-                        className="absolute top-0 left-0 bg-[#FFD700] text-black px-4 py-2 text-xs md:text-sm font-black shadow-lg uppercase tracking-widest z-10 border-b border-r border-[#DAA520]"
-                        initial={{ x: -100, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        transition={{ delay: 0.5 + index * 0.08, type: "spring", stiffness: 100 }}
-                      >
-                        Popular
-                      </motion.div>
-                    )}
-                    {course.additionalChoices === 'New' && (
-                      <motion.div 
-                        className="absolute top-0 left-0 bg-[#86EFAC] text-black px-4 py-2 text-xs md:text-sm font-black shadow-lg uppercase tracking-widest z-10 border-b border-r border-[#4ADE80]"
-                        initial={{ x: -100, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        transition={{ delay: 0.5 + index * 0.08, type: "spring", stiffness: 100 }}
-                      >
-                        New
-                      </motion.div>
-                    )}
-                    {course.additionalChoices === 'Premium' && (
-                      <motion.div 
-                        className="absolute top-0 left-0 bg-gradient-to-r from-[#0a0a0a] to-[#2a2a2a] text-[#FFD700] px-4 py-2 text-xs md:text-sm font-black shadow-xl uppercase tracking-widest z-10 border-b border-r border-[#FFD700]/30"
-                        initial={{ x: -100, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        transition={{ delay: 0.5 + index * 0.08, type: "spring", stiffness: 100 }}
-                      >
-                        Premium
-                      </motion.div>
-                    )}
-                  </div>
-                  <div className="p-3 md:p-5 flex-1 flex flex-col">
-                    <h3 className="text-sm md:text-lg font-semibold text-gray-900 mb-1 md:mb-2 line-clamp-2">
-                      {course.title}
-                    </h3>
-                    <div className="flex items-center mb-2 md:mb-3">
-                      <div className="flex items-center">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ scale: 0, rotate: -180 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            transition={{ delay: 0.6 + index * 0.08 + i * 0.05, type: "spring", stiffness: 200 }}
+                  <motion.div
+                    initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    whileHover={{ y: -5 }}
+                    transition={{ 
+                      duration: 0.5, 
+                      delay: index * 0.08,
+                      ease: "easeOut"
+                    }}
+                    className="bg-white border-2 border-black rounded-xl overflow-hidden shadow-sm hover:shadow-xl hover:border-[#FF6B35]/30 transition-all duration-300 cursor-pointer h-full flex flex-col group"
+                  >
+                    <div className="relative h-32 md:h-48 overflow-hidden">
+                      <img
+                        src={course.image || null}
+                        alt={course.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                      {course.additionalChoices === 'Popular' && (
+                        <motion.div 
+                          className="absolute top-0 left-0 bg-[#FFD700] text-black px-4 py-2 text-xs md:text-sm font-black shadow-lg uppercase tracking-widest z-10 border-b border-r border-[#DAA520]"
+                          initial={{ x: -100, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: 0.5 + index * 0.08, type: "spring", stiffness: 100 }}
+                        >
+                          Popular
+                        </motion.div>
+                      )}
+                      {course.additionalChoices === 'New' && (
+                        <motion.div 
+                          className="absolute top-0 left-0 bg-[#86EFAC] text-black px-4 py-2 text-xs md:text-sm font-black shadow-lg uppercase tracking-widest z-10 border-b border-r border-[#4ADE80]"
+                          initial={{ x: -100, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: 0.5 + index * 0.08, type: "spring", stiffness: 100 }}
+                        >
+                          New
+                        </motion.div>
+                      )}
+                      {course.additionalChoices === 'Premium' && (
+                        <motion.div 
+                          className="absolute top-0 left-0 bg-gradient-to-r from-[#0a0a0a] to-[#2a2a2a] text-[#FFD700] px-4 py-2 text-xs md:text-sm font-black shadow-xl uppercase tracking-widest z-10 border-b border-r border-[#FFD700]/30"
+                          initial={{ x: -100, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: 0.5 + index * 0.08, type: "spring", stiffness: 100 }}
+                        >
+                          Premium
+                        </motion.div>
+                      )}
+                    </div>
+                    <div className="p-3 md:p-5 flex-1 flex flex-col">
+                      <h3 className="text-sm md:text-lg font-semibold text-gray-900 mb-1 md:mb-2 line-clamp-2">
+                        {course.title}
+                      </h3>
+                      <div className="flex items-center mb-2 md:mb-3">
+                        <div className="flex items-center">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <motion.div
+                              key={i}
+                              initial={{ scale: 0, rotate: -180 }}
+                              animate={{ scale: 1, rotate: 0 }}
+                              transition={{ delay: 0.6 + index * 0.08 + i * 0.05, type: "spring", stiffness: 200 }}
+                            >
+                              <Star
+                                className={cn(
+                                  "w-3 h-3 md:w-4 md:h-4",
+                                  i < course.rating ? "fill-[#ffa534] text-[#ffa534]" : "fill-gray-300 text-gray-300"
+                                )}
+                              />
+                            </motion.div>
+                          ))}
+                        </div>
+                        <span className="text-[10px] md:text-sm text-gray-500 ml-1 md:ml-2">({course.reviews})</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-auto">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] md:text-sm text-gray-400 line-through font-medium">{course.originalPrice}</span>
+                          <motion.span 
+                            className="text-lg md:text-2xl font-bold text-[#FF6B35]"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.7 + index * 0.08 }}
+                          >{course.price}</motion.span>
+                        </div>
+                        <div className="flex items-center gap-1 md:gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              wishlistService.toggleWishlist(String(course.id));
+                            }}
+                            className={cn(
+                              "p-1.5 md:p-2 rounded-full border-2 transition-colors duration-300",
+                              wishlistItems.includes(String(course.id))
+                                ? "bg-red-50 border-red-200 text-red-500"
+                                : "bg-gray-50 border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-100"
+                            )}
                           >
-                            <Star
-                              className={cn(
-                                "w-3 h-3 md:w-4 md:h-4",
-                                i < course.rating ? "fill-[#ffa534] text-[#ffa534]" : "fill-gray-300 text-gray-300"
-                              )}
-                            />
-                          </motion.div>
-                        ))}
-                      </div>
-                      <span className="text-[10px] md:text-sm text-gray-500 ml-1 md:ml-2">({course.reviews})</span>
-                    </div>
-                    <div className="flex items-center justify-between mt-auto">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] md:text-sm text-gray-400 line-through font-medium">{course.originalPrice}</span>
-                        <motion.span 
-                          className="text-lg md:text-2xl font-bold text-[#FF6B35]"
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.7 + index * 0.08 }}
-                        >{course.price}</motion.span>
-                      </div>
-                      <div className="flex items-center gap-1 md:gap-2">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            wishlistService.toggleWishlist(String(course.id));
-                          }}
-                          className={cn(
-                            "p-1.5 md:p-2 rounded-full border-2 transition-colors duration-300",
-                            wishlistItems.includes(String(course.id))
-                              ? "bg-red-50 border-red-200 text-red-500"
-                              : "bg-gray-50 border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-100"
-                          )}
-                        >
-                          <Heart className={cn("w-3.5 h-3.5 md:w-5 md:h-5", wishlistItems.includes(String(course.id)) && "fill-current")} />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            cartService.addToCart(course.id);
-                          }}
-                          className={cn(
-                            "flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl transition-all shadow-sm",
-                            cartService.isInCart(course.id) 
-                              ? "bg-gray-100 text-gray-400 cursor-default" 
-                              : "bg-[#FF6B35] text-black hover:shadow-md"
-                          )}
-                        >
-                          {cartService.isInCart(course.id) ? <Check className="w-4 h-4 md:w-5 md:h-5" /> : <Plus className="w-4 h-4 md:w-5 md:h-5" />}
-                        </motion.button>
+                            <Heart className={cn("w-3.5 h-3.5 md:w-5 md:h-5", wishlistItems.includes(String(course.id)) && "fill-current")} />
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              cartService.addToCart(course.id);
+                            }}
+                            className={cn(
+                              "flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl transition-all shadow-sm",
+                              cartService.isInCart(course.id) 
+                                ? "bg-gray-100 text-gray-400 cursor-default" 
+                                : "bg-[#FF6B35] text-black hover:shadow-md"
+                            )}
+                          >
+                            {cartService.isInCart(course.id) ? <Check className="w-4 h-4 md:w-5 md:h-5" /> : <Plus className="w-4 h-4 md:w-5 md:h-5" />}
+                          </motion.button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              </Link>
-            ))}
+                  </motion.div>
+                </Link>
+              );
+            })}
           </div>
 
           {totalPages > 1 && (
@@ -1411,11 +1296,18 @@ export default function Home() {
                     ) : 0;
                     const total = subtotal - discount;
                     
-                    let message = `*New Order from Course Hunt*\n\n`;
+                    let message = `*I love this course I want to buy it!* 🚀\n\n`;
+                    message += `*New Order from Course Hunt*\n\n`;
                     message += `*Items:*\n`;
                     cartItems.forEach((item, index) => {
-                      const courseUrl = `${window.location.origin}/course/${item.id}`;
-                      message += `${index + 1}. ${item.title} - ${item.price}\n   Link: ${courseUrl}\n`;
+                      const slug = item.title
+                        .toLowerCase()
+                        .trim()
+                        .replace(/[^\w\s-]/g, '')
+                        .replace(/[\s_-]+/g, '-')
+                        .replace(/^-+|-+$/g, '');
+                      const courseUrl = `${window.location.origin}/course/${slug}`;
+                      message += `${index + 1}. *${item.title}* - *${item.price}*\n   Link: ${courseUrl}\n`;
                     });
                     
                     if (profile?.email) {
@@ -1424,12 +1316,12 @@ export default function Home() {
                       message += `\n*User Email:* ${user.email}\n`;
                     }
                     
-                    message += `\n*Subtotal:* $${subtotal.toFixed(2)}`;
+                    message += `\n*Subtotal:* *${subtotal.toFixed(2)}*`;
                     if (appliedCoupon) {
-                      message += `\n*Coupon:* ${appliedCoupon.code} (-${appliedCoupon.discount}%)`;
-                      message += `\n*Discount:* -$${discount.toFixed(2)}`;
+                      message += `\n*Coupon:* *${appliedCoupon.code}* (-${appliedCoupon.discount}%)`;
+                      message += `\n*Discount:* -*${discount.toFixed(2)}*`;
                     }
-                    message += `\n*Total Price:* $${total.toFixed(2)}`;
+                    message += `\n*Total Price:* *${total.toFixed(2)}*`;
                     
                     const encodedMessage = encodeURIComponent(message);
                     window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');

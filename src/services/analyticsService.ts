@@ -38,12 +38,22 @@ export const analyticsService = {
         else source = `Referral: ${referrer}`;
       }
 
+      // Check if this course has already been clicked in this session
+      const sessionKey = `clicked_${courseId}`;
+      if (sessionStorage.getItem(sessionKey)) {
+        return;
+      }
+
       await addDoc(collection(db, CLICKS_COLLECTION), {
         courseId: String(courseId),
         uid: auth.currentUser?.uid || null,
         timestamp: serverTimestamp(),
         trafficSource: source
       });
+
+      // Mark as clicked in this session
+      sessionStorage.setItem(sessionKey, 'true');
+      
       window.dispatchEvent(new Event('analytics-updated'));
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, CLICKS_COLLECTION);
