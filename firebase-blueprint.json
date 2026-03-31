@@ -1,0 +1,161 @@
+{
+  "entities": {
+    "Course": {
+      "title": "Course",
+      "description": "A course offered on the platform",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "price": { "type": "string" },
+        "originalPrice": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviews": { "type": "number" },
+        "image": { "type": "string" },
+        "category": { "type": "string" },
+        "additionalChoices": { "type": "string" },
+        "sourceUrl": { "type": "string" },
+        "about": { "type": "string" },
+        "objectives": { "type": "array", "items": { "type": "string" } },
+        "gallery": { "type": "array", "items": { "type": "string" } },
+        "fileImages": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "price", "image", "category"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A review for a course",
+      "type": "object",
+      "properties": {
+        "course_id": { "type": "string" },
+        "user_name": { "type": "string" },
+        "uid": { "type": "string", "description": "The UID of the user who wrote the review" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "image_url": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["course_id", "user_name", "rating", "comment"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Application settings",
+      "type": "object",
+      "properties": {
+        "announcement": { "type": "string" },
+        "announcementLink": { "type": "string" },
+        "announcementCountdown": { "type": "string", "format": "date-time" },
+        "categories": { "type": "array", "items": { "type": "string" } },
+        "coupons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "code": { "type": "string" },
+              "discount": { "type": "number" },
+              "isActive": { "type": "boolean" },
+              "courseId": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "Click": {
+      "title": "Click",
+      "description": "A course click event",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string" },
+        "uid": { "type": "string", "description": "The UID of the user who clicked (if authenticated)" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "country": { "type": "string" }
+      }
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "coverURL": { "type": "string" },
+        "bio": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "status": { "type": "string", "enum": ["active", "blocked"] },
+        "lastLogin": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Cart": {
+      "title": "Cart",
+      "description": "User shopping cart",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "items"]
+    },
+    "Wishlist": {
+      "title": "Wishlist",
+      "description": "User wishlist",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "items"]
+    },
+    "Presence": {
+      "title": "Presence",
+      "description": "Real-time user presence tracking",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "lastSeen": { "type": "object", "description": "Firestore server timestamp" },
+        "isGuest": { "type": "boolean" },
+        "email": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "courses": {
+      "schema": "Course",
+      "description": "Collection of courses"
+    },
+    "reviews": {
+      "schema": "Review",
+      "description": "Collection of course reviews"
+    },
+    "settings": {
+      "schema": "Settings",
+      "description": "Application settings document"
+    },
+    "clicks": {
+      "schema": "Click",
+      "description": "Course click events"
+    },
+    "users": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "carts": {
+      "schema": "Cart",
+      "description": "User shopping carts"
+    },
+    "wishlists": {
+      "schema": "Wishlist",
+      "description": "User wishlists"
+    },
+    "presence": {
+      "schema": "Presence",
+      "description": "Live user presence"
+    }
+  }
+}
