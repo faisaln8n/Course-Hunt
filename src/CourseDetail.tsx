@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
 import { useUserAuth } from './components/AuthContext';
 import Logo from './components/ui/Logo';
+import LoadingScreen from './components/ui/LoadingScreen';
 import './CourseDetail.css';
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
@@ -88,6 +89,7 @@ export default function CourseDetail() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewImagePreview, setReviewImagePreview] = useState<string | null>(null);
   const [visibleReviewsCount, setVisibleReviewsCount] = useState(20);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const courseId = course?.id;
 
   const slugify = (text: string) => {
@@ -122,6 +124,7 @@ export default function CourseDetail() {
         .filter((c): c is Course => !!c);
       setCartItems(items);
       setWishlistItems(wishlistService.getWishlistItems());
+      setIsLoading(false);
     };
 
     const handleCartUpdate = async () => {
@@ -279,42 +282,68 @@ export default function CourseDetail() {
 
   return (
     <div className="course-detail-page">
+      <AnimatePresence>
+        {isLoading && <LoadingScreen />}
+      </AnimatePresence>
       {/* Announcement Bar */}
       {settings.announcement && (
-        <div className="relative z-40 bg-gradient-to-r from-[#f09433] via-[#dc2743] to-[#bc1888] text-white py-1 md:py-2 px-2 md:px-4 flex items-center justify-center overflow-hidden shadow-2xl border-b border-white/10">
-          <div className="flex items-center justify-center gap-2 md:gap-6 max-w-full px-6 md:px-0">
-            <motion.div
-              animate={{ opacity: [0.8, 1, 0.8] }}
-              transition={{ duration: 3, repeat: Infinity }}
-              className="flex items-center gap-1.5 md:gap-3 shrink-0"
-            >
-              <div className="bg-white/20 p-1 md:p-2 rounded-full backdrop-blur-sm">
-                <Megaphone className="w-3 h-3 md:w-5 md:h-5 text-white" />
-              </div>
-              <span className="font-mono text-[10px] md:text-[15px] text-[#f7f0f2] bg-[#038896]/80 backdrop-blur-sm rounded-[4px] md:rounded-[5px] font-medium px-1.5 md:px-2 py-0.5 border border-white/10 whitespace-nowrap shadow-sm">
-                {settings.announcement}
-              </span>
-            </motion.div>
-            
-            {settings.announcementCountdown && (
-              <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
-                <div className="h-4 md:h-8 w-[1px] bg-white/20" />
-                <CountdownTimer targetDate={settings.announcementCountdown} />
-              </div>
-            )}
- 
-            {settings.announcementLink && (
+        <div className="relative z-40 bg-gradient-to-r from-[#f09433] via-[#dc2743] to-[#bc1888] text-white py-1 md:py-2 px-1 md:px-4 flex items-center justify-center overflow-hidden shadow-2xl border-b border-white/10">
+          <div className="flex items-center justify-center gap-1 md:gap-6 max-w-full px-1 md:px-0 overflow-hidden">
+            {settings.announcementLink ? (
               <a 
                 href={settings.announcementLink.startsWith('http') || settings.announcementLink.startsWith('/') ? settings.announcementLink : `https://${settings.announcementLink}`} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="bg-white text-[#dc2743] px-2 md:px-6 py-0.5 md:py-1.5 rounded-md md:rounded-xl text-[9px] md:text-sm font-black hover:bg-opacity-90 transition-all flex items-center gap-0.5 md:gap-2 shadow-lg hover:scale-105 active:scale-95 whitespace-nowrap shrink-0"
-                style={{ textDecoration: 'none' }}
+                className="flex items-center justify-center gap-1 md:gap-6 hover:opacity-90 transition-opacity no-underline"
               >
-                <span className="hidden xs:inline">Learn More</span>
-                <span className="xs:hidden">Join</span>
-                <ChevronRight className="w-2.5 h-2.5 md:w-4 md:h-4" />
+                <motion.div
+                  animate={{ opacity: [0.8, 1, 0.8] }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  className="flex items-center gap-1 md:gap-3 shrink-0"
+                >
+                  <div className="bg-white/20 p-0.5 md:p-2 rounded-full backdrop-blur-sm">
+                    <Megaphone className="w-2.5 h-2.5 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <span className="font-mono text-[8px] md:text-[15px] text-[#f7f0f2] bg-[#038896]/80 backdrop-blur-sm rounded-[4px] md:rounded-[5px] font-medium px-1 md:px-2 py-0.5 border border-white/10 whitespace-nowrap shadow-sm">
+                    {settings.announcement}
+                  </span>
+                </motion.div>
+                
+                {settings.announcementCountdown && (
+                  <div className="flex items-center gap-1 md:gap-3 shrink-0">
+                    <div className="hidden md:block h-4 md:h-8 w-[1px] bg-white/20" />
+                    <CountdownTimer targetDate={settings.announcementCountdown} />
+                  </div>
+                )}
+                
+                <div className="bg-white text-[#dc2743] px-1 md:px-6 py-0.5 md:py-1.5 rounded-md md:rounded-xl text-[7px] md:text-sm font-black flex items-center gap-0.5 md:gap-2 shadow-lg whitespace-nowrap shrink-0">
+                  <span className="hidden xs:inline">Learn More</span>
+                  <span className="xs:hidden">Join</span>
+                  <ChevronRight className="w-2 h-2 md:w-4 md:h-4" />
+                </div>
               </a>
+            ) : (
+              <div className="flex items-center justify-center gap-1 md:gap-6">
+                <motion.div
+                  animate={{ opacity: [0.8, 1, 0.8] }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  className="flex items-center gap-1 md:gap-3 shrink-0"
+                >
+                  <div className="bg-white/20 p-0.5 md:p-2 rounded-full backdrop-blur-sm">
+                    <Megaphone className="w-2.5 h-2.5 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <span className="font-mono text-[8px] md:text-[15px] text-[#f7f0f2] bg-[#038896]/80 backdrop-blur-sm rounded-[4px] md:rounded-[5px] font-medium px-1 md:px-2 py-0.5 border border-white/10 whitespace-nowrap shadow-sm">
+                    {settings.announcement}
+                  </span>
+                </motion.div>
+                
+                {settings.announcementCountdown && (
+                  <div className="flex items-center gap-1 md:gap-3 shrink-0">
+                    <div className="hidden md:block h-4 md:h-8 w-[1px] bg-white/20" />
+                    <CountdownTimer targetDate={settings.announcementCountdown} />
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
