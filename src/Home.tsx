@@ -1296,10 +1296,21 @@ export default function Home() {
                     ) : 0;
                     const total = subtotal - discount;
                     
-                    let message = `*I love this course I want to buy it!* 🚀\n\n`;
-                    message += `*New Order from Course Hunt*\n\n`;
-                    message += `*Items:*\n`;
-                    cartItems.forEach((item, index) => {
+                    let message = `*Great news!* A Valuable customer is excited about your course and just placed an order!\n\n`;
+                    message += `*Order Details:*\n`;
+                    
+                    cartItems.forEach((item) => {
+                      message += `• *Course:* ${item.title}\n`;
+                      message += `• *Price:* ${item.price}\n`;
+                    });
+
+                    message += `• *Total Price:* $${total.toFixed(2)}`;
+                    if (appliedCoupon) {
+                      message += ` ( ${appliedCoupon.code} - ${appliedCoupon.discount}% )`;
+                    }
+                    message += `\n`;
+
+                    cartItems.forEach((item) => {
                       const slug = item.title
                         .toLowerCase()
                         .trim()
@@ -1307,21 +1318,17 @@ export default function Home() {
                         .replace(/[\s_-]+/g, '-')
                         .replace(/^-+|-+$/g, '');
                       const courseUrl = `${window.location.origin}/course/${slug}`;
-                      message += `${index + 1}. *${item.title}* - *${item.price}*\n   Link: ${courseUrl}\n`;
+                      // Adding a zero-width space before the link to try and prevent preview
+                      message += `• *Course Link:* \u200B${courseUrl}\n`;
                     });
+
+                    message += `\n`;
+                    const email = profile?.email || user?.email || 'Not provided';
+                    message += `*Customer Email:* ${email}\n\n`;
                     
-                    if (profile?.email) {
-                      message += `\n*User Email:* ${profile.email}\n`;
-                    } else if (user?.email) {
-                      message += `\n*User Email:* ${user.email}\n`;
-                    }
-                    
-                    message += `\n*Subtotal:* *${subtotal.toFixed(2)}*`;
-                    if (appliedCoupon) {
-                      message += `\n*Coupon:* *${appliedCoupon.code}* (-${appliedCoupon.discount}%)`;
-                      message += `\n*Discount:* -*${discount.toFixed(2)}*`;
-                    }
-                    message += `\n*Total Price:* *${total.toFixed(2)}*`;
+                    message += `*Customer Message:*\n`;
+                    message += `I love this course, I want to buy it!. Please verify the order and provide access to the course if everything looks good.\n`;
+                    message += `Thank you!`;
                     
                     const encodedMessage = encodeURIComponent(message);
                     window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');

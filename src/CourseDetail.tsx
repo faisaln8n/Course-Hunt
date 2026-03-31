@@ -198,8 +198,32 @@ export default function CourseDetail() {
   const handleWhatsAppClick = () => {
     const phoneNumber = "+8801314493061";
     const currentUrl = window.location.href;
-    const userEmailText = profile?.email ? `\n*User Email:* ${profile.email}` : (user?.email ? `\n*User Email:* ${user.email}` : '');
-    const message = `*I love this course I want to buy it!* 🚀\n\n*Course Name:* *${course.title}*\n*Price:* *${course.price}*\n*Link:* ${currentUrl}${userEmailText}`;
+    const email = profile?.email || user?.email || 'Not provided';
+    
+    const subtotal = Number(course.price.replace('$', ''));
+    const discount = appliedCoupon ? (
+      appliedCoupon.courseId 
+        ? (appliedCoupon.courseId === String(course.id) ? (subtotal * appliedCoupon.discount / 100) : 0)
+        : (subtotal * appliedCoupon.discount) / 100
+    ) : 0;
+    const total = subtotal - discount;
+
+    let message = `*Great news!* A Valuable customer is excited about your course and just placed an order!\n\n`;
+    message += `*Order Details:*\n`;
+    message += `• *Course:* ${course.title}\n`;
+    message += `• *Price:* ${course.price}\n`;
+    message += `• *Total Price:* $${total.toFixed(2)}`;
+    if (appliedCoupon) {
+      message += ` ( ${appliedCoupon.code} - ${appliedCoupon.discount}% )`;
+    }
+    message += `\n`;
+    // Adding a zero-width space before the link to try and prevent preview
+    message += `• *Course Link:* \u200B${currentUrl}\n\n`;
+    message += `*Customer Email:* ${email}\n\n`;
+    message += `*Customer Message:*\n`;
+    message += `I love this course, I want to buy it!. Please verify the order and provide access to the course if everything looks good.\n`;
+    message += `Thank you!`;
+    
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');
   };
@@ -954,10 +978,21 @@ export default function CourseDetail() {
                       ) : 0;
                       const total = subtotal - discount;
                       
-                      let message = `*I love this course I want to buy it!* 🚀\n\n`;
-                      message += `*New Order from Course Hunt*\n\n`;
-                      message += `*Items:*\n`;
-                      cartItems.forEach((item, index) => {
+                      let message = `*Great news!* A Valuable customer is excited about your course and just placed an order!\n\n`;
+                      message += `*Order Details:*\n`;
+                      
+                      cartItems.forEach((item) => {
+                        message += `• *Course:* ${item.title}\n`;
+                        message += `• *Price:* ${item.price}\n`;
+                      });
+
+                      message += `• *Total Price:* $${total.toFixed(2)}`;
+                      if (appliedCoupon) {
+                        message += ` ( ${appliedCoupon.code} - ${appliedCoupon.discount}% )`;
+                      }
+                      message += `\n`;
+
+                      cartItems.forEach((item) => {
                         const slug = item.title
                           .toLowerCase()
                           .trim()
@@ -965,18 +1000,17 @@ export default function CourseDetail() {
                           .replace(/[\s_-]+/g, '-')
                           .replace(/^-+|-+$/g, '');
                         const courseUrl = `${window.location.origin}/course/${slug}`;
-                        message += `${index + 1}. *${item.title}* - *${item.price}*\n   Link: ${courseUrl}\n`;
+                        // Adding a zero-width space before the link to try and prevent preview
+                        message += `• *Course Link:* \u200B${courseUrl}\n`;
                       });
+
+                      message += `\n`;
+                      const email = profile?.email || user?.email || 'Not provided';
+                      message += `*Customer Email:* ${email}\n\n`;
                       
-                      const userEmailText = profile?.email ? `\n*User Email:* ${profile.email}` : (user?.email ? `\n*User Email:* ${user.email}` : '');
-                      message += userEmailText;
-                      
-                      message += `\n*Subtotal:* *${subtotal.toFixed(2)}*`;
-                      if (appliedCoupon) {
-                        message += `\n*Coupon:* *${appliedCoupon.code}* (-${appliedCoupon.discount}%)`;
-                        message += `\n*Discount:* -*${discount.toFixed(2)}*`;
-                      }
-                      message += `\n*Total Price:* *${total.toFixed(2)}*`;
+                      message += `*Customer Message:*\n`;
+                      message += `I love this course, I want to buy it!. Please verify the order and provide access to the course if everything looks good.\n`;
+                      message += `Thank you!`;
                       
                       const encodedMessage = encodeURIComponent(message);
                       window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');
