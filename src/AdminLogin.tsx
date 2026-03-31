@@ -4,11 +4,29 @@ import { BookOpen, Lock, AlertCircle, LogIn, Target } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Logo from './components/ui/Logo';
 
+import { auth, googleProvider } from './firebase';
+import { signInWithPopup } from 'firebase/auth';
+
+import { Toaster, toast } from 'sonner';
+
 export default function AdminLogin() {
   const [secretKey, setSecretKey] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      await signInWithPopup(auth, googleProvider);
+      toast.success('Authenticated with Google');
+    } catch (error) {
+      console.error('Error signing in with Google:', error);
+      toast.error('Failed to sign in with Google');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +98,24 @@ export default function AdminLogin() {
                     Access Dashboard
                   </>
                 )}
+              </button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-100"></div>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-slate-400">Or authenticate with</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="flex w-full items-center justify-center gap-3 rounded-xl border-2 border-slate-200 bg-white py-3 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98]"
+              >
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-5 w-5" />
+                Continue with Google
               </button>
 
               <div className="relative">

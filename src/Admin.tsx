@@ -63,8 +63,9 @@ import { settingsService, AppSettings } from './services/settingsService';
 import { userService, UserProfile } from './services/userService';
 import { presenceService } from './services/presenceService';
 
-import { auth } from './firebase';
-import { LogIn as LoginIcon, AlertTriangle } from 'lucide-react';
+import { auth, googleProvider } from './firebase';
+import { signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
+import { LogIn as LoginIcon, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -81,6 +82,10 @@ export default function AdminDashboard() {
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  // Auth State
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
   // Users State
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
@@ -107,6 +112,24 @@ export default function AdminDashboard() {
   const [liveUsers, setLiveUsers] = useState<any[]>([]);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleFirebaseSignIn = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      toast.success('Authenticated with Firebase successfully');
+    } catch (error) {
+      console.error('Firebase sign in error:', error);
+      toast.error('Failed to authenticate with Firebase');
+    }
+  };
 
   useEffect(() => {
     const unsubscribeClicks = analyticsService.onClicksSnapshot((clicks) => {
@@ -1215,6 +1238,26 @@ export default function AdminDashboard() {
     <div className="flex min-h-screen bg-[#F8FAFC]">
       <Toaster position="top-right" richColors />
       
+      {/* Firebase Auth Warning Banner */}
+      {!isAuthLoading && !currentUser && (
+        <div className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between bg-amber-500 px-6 py-3 text-white shadow-lg">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5" />
+            <p className="text-sm font-medium">
+              You are logged in with a secret key, but not authenticated with Firebase. 
+              <span className="ml-1 hidden md:inline">Saving changes will fail until you sign in with an admin Google account.</span>
+            </p>
+          </div>
+          <button 
+            onClick={handleFirebaseSignIn}
+            className="flex items-center gap-2 rounded-lg bg-white px-4 py-1.5 text-xs font-bold text-amber-600 transition-all hover:bg-amber-50 active:scale-95"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            Sign in with Google
+          </button>
+        </div>
+      )}
+
       {/* Sidebar */}
       <aside className="w-64 border-r border-slate-200 bg-white">
         <div className="p-6">
