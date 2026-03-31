@@ -88,6 +88,7 @@ export default function CourseDetail() {
   });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewImagePreview, setReviewImagePreview] = useState<string | null>(null);
+  const [visibleReviewsCount, setVisibleReviewsCount] = useState(20);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -657,62 +658,76 @@ export default function CourseDetail() {
                   <p className="text-gray-500 font-medium">No reviews yet. Be the first!</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-6">
-                  {reviews.map((review) => (
-                    <motion.div
-                      key={review.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-all"
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden border border-gray-100">
-                            <img 
-                              src={`https://api.dicebear.com/7.x/notionists/svg?seed=${review.user_name}`} 
-                              alt={review.user_name}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-gray-900 text-sm">{review.user_name}</h4>
-                            <div className="flex items-center gap-2">
-                              <div className="flex">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                  <Star
-                                    key={star}
-                                    className={cn(
-                                      "w-3 h-3",
-                                      star <= review.rating ? "fill-[#ffa534] text-[#ffa534]" : "fill-gray-100 text-gray-100"
-                                    )}
-                                  />
-                                ))}
+                <div className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {reviews.slice(0, visibleReviewsCount).map((review) => (
+                      <motion.div
+                        key={review.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-all"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden border border-gray-100">
+                              <img 
+                                src={`https://api.dicebear.com/7.x/notionists/svg?seed=${review.user_name}`} 
+                                alt={review.user_name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-gray-900 text-sm">{review.user_name}</h4>
+                              <div className="flex items-center gap-2">
+                                <div className="flex">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className={cn(
+                                        "w-3 h-3",
+                                        star <= review.rating ? "fill-[#ffa534] text-[#ffa534]" : "fill-gray-100 text-gray-100"
+                                      )}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-[10px] font-medium text-gray-400">
+                                  {new Date(review.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </span>
                               </div>
-                              <span className="text-[10px] font-medium text-gray-400">
-                                {new Date(review.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                              </span>
                             </div>
                           </div>
                         </div>
-                      </div>
-                      
-                      <p className="text-gray-600 text-sm leading-relaxed">
-                        {review.comment}
-                      </p>
+                        
+                        <p className="text-gray-600 text-sm leading-relaxed">
+                          {review.comment}
+                        </p>
 
-                      {review.image_url && (
-                        <div className="mt-4 rounded-xl overflow-hidden border border-gray-50 max-w-xs">
-                          <img 
-                            src={review.image_url} 
-                            alt="Review proof" 
-                            className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                      )}
-                    </motion.div>
-                  ))}
+                        {review.image_url && (
+                          <div className="mt-4 rounded-xl overflow-hidden border border-gray-50 max-w-xs">
+                            <img 
+                              src={review.image_url} 
+                              alt="Review proof" 
+                              className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {reviews.length > visibleReviewsCount && (
+                    <div className="flex justify-center pt-4">
+                      <button
+                        onClick={() => setVisibleReviewsCount(prev => prev + 20)}
+                        className="group flex items-center gap-2 px-8 py-3 bg-white border border-gray-200 rounded-full font-bold text-gray-600 hover:border-[#FF6B35] hover:text-[#FF6B35] transition-all shadow-sm hover:shadow-md"
+                      >
+                        See More Reviews
+                        <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
