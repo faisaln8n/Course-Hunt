@@ -7,6 +7,7 @@ import { cartService } from './services/cartService';
 import { wishlistService } from './services/wishlistService';
 import { analyticsService } from './services/analyticsService';
 import { settingsService, AppSettings, Coupon } from './services/settingsService';
+import { walletService } from './services/walletService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
 import { useUserAuth } from './components/AuthContext';
@@ -87,6 +88,7 @@ export default function CourseDetail() {
     image_url: ''
   });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
   const [reviewImagePreview, setReviewImagePreview] = useState<string | null>(null);
   const [visibleReviewsCount, setVisibleReviewsCount] = useState(20);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -198,11 +200,73 @@ export default function CourseDetail() {
     ? course.fileImages
     : [];
 
-  const handleWhatsAppClick = () => {
-    const phoneNumber = "+8801314493061";
-    const currentUrl = window.location.href;
-    const email = profile?.email || user?.email || 'Not provided';
-    
+  const handleCheckout = async () => {
+    if (!user) {
+      toast.error('Please login to purchase courses');
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      toast.error('Your cart is empty');
+      return;
+    }
+
+    setIsPurchasing(true);
+    try {
+      const balance = await walletService.getBalance(user.uid);
+      
+      const subtotal = cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0);
+      const discount = appliedCoupon ? (
+        appliedCoupon.courseId 
+          ? (Number(cartItems.find(item => String(item.id) === appliedCoupon.courseId)?.price.replace('$', '') || 0) * appliedCoupon.discount / 100)
+          : (subtotal * appliedCoupon.discount) / 100
+      ) : 0;
+      const total = subtotal - discount;
+
+      if (balance < total) {
+        toast.error(`Insufficient balance. You need $${total.toFixed(2)} but have $${balance.toFixed(2)}`);
+        setIsPurchasing(false);
+        return;
+      }
+
+      // Purchase each course
+      for (const item of cartItems) {
+        const itemSubtotal = Number(item.price.replace('$', ''));
+        const itemDiscount = appliedCoupon ? (
+          appliedCoupon.courseId 
+            ? (appliedCoupon.courseId === String(item.id) ? (itemSubtotal * appliedCoupon.discount / 100) : 0)
+            : (itemSubtotal * appliedCoupon.discount) / 100
+        ) : 0;
+        const itemTotal = itemSubtotal - itemDiscount;
+
+        const result = await walletService.purchaseCourse(user.uid, String(item.id), itemTotal, item.title);
+        if (!result.success) {
+          throw new Error(result.error || `Failed to purchase ${item.title}`);
+        }
+      }
+
+      // Clear cart
+      cartService.clearCart();
+      setCartItems([]);
+      setCartCount(0);
+      setIsCartOpen(false);
+      
+      toast.success('Purchase successful! You can now access your courses in your profile.');
+      window.dispatchEvent(new CustomEvent('courses-updated'));
+    } catch (error: any) {
+      console.error('Checkout error:', error);
+      toast.error(error.message || 'Failed to complete purchase');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!user) {
+      toast.error('Please login to purchase this course');
+      return;
+    }
+
     const subtotal = Number(course.price.replace('$', ''));
     const discount = appliedCoupon ? (
       appliedCoupon.courseId 
@@ -211,25 +275,24 @@ export default function CourseDetail() {
     ) : 0;
     const total = subtotal - discount;
 
-    let message = `*Great news!* A Valuable customer is excited about your course and just placed an order!\n\n`;
-    message += `*Order Details:*\n`;
-    message += `• *Course:* ${course.title}\n`;
-    message += `• *Price:* ${course.price}\n`;
-    message += `• *Total Price:* $${total.toFixed(2)}`;
-    if (appliedCoupon) {
-      message += ` ( ${appliedCoupon.code} - ${appliedCoupon.discount}% )`;
+    setIsPurchasing(true);
+    try {
+      const result = await walletService.purchaseCourse(user.uid, String(course.id), total, course.title);
+      if (result.success) {
+        toast.success('Course purchased successfully!');
+        window.dispatchEvent(new CustomEvent('courses-updated'));
+      } else {
+        toast.error(result.error || 'Failed to purchase course');
+      }
+    } catch (error) {
+      console.error('Error purchasing course:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setIsPurchasing(false);
     }
-    message += `\n`;
-    // Adding a zero-width space before the link to try and prevent preview
-    message += `• *Course Link:* \u200B${currentUrl}\n\n`;
-    message += `*Customer Email:* ${email}\n\n`;
-    message += `*Customer Message:*\n`;
-    message += `I love this course, I want to buy it!. Please verify the order and provide access to the course if everything looks good.\n`;
-    message += `Thank you!`;
-    
-    const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');
   };
+
+  const isPurchased = profile?.purchasedCourses?.includes(String(course.id));
 
   const handleReviewImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -363,7 +426,7 @@ export default function CourseDetail() {
               onClick={() => setIsCartOpen(true)}
             >
               <ShoppingCart className="w-5 h-5 text-gray-600" />
-              {cartCount > 0 && (
+              {cartCount >= 0 && (
                 <span className="absolute -top-2 -right-2 bg-[#FF6B35] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
                   {cartCount}
                 </span>
@@ -406,7 +469,15 @@ export default function CourseDetail() {
         <section className="media-gallery">
           <h2>Course Preview</h2>
           <div className="hero-image relative overflow-hidden rounded-2xl">
-            <img src={galleryImages[activeImage] || null} alt="Course Hero" />
+            <img 
+              src={galleryImages[activeImage] || null} 
+              alt="Course Hero" 
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = `https://picsum.photos/seed/${course.id}/1200/800`;
+              }}
+            />
             {course.additionalChoices === 'Popular' && (
               <div className="absolute top-0 left-0 fire-effect text-white text-xs md:text-sm font-black px-6 pt-6 pb-2 z-10 shadow-xl uppercase tracking-widest rounded-br-2xl min-h-[50px]">
                 Popular
@@ -433,7 +504,15 @@ export default function CourseDetail() {
                 onClick={() => setActiveImage(idx)}
                 style={{ border: activeImage === idx ? '2px solid #0052CC' : 'none' }}
               >
-                <img src={img || null} alt={`Thumbnail ${idx + 1}`} />
+                <img 
+                  src={img || null} 
+                  alt={`Thumbnail ${idx + 1}`} 
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = `https://picsum.photos/seed/${course.id}-${idx}/200/200`;
+                  }}
+                />
               </div>
             ))}
           </div>
@@ -483,7 +562,17 @@ export default function CourseDetail() {
             <p style={{ textAlign: 'center', color: '#555', marginBottom: '20px' }}>See exactly what you'll get access to instantly after purchase.</p>
             <div className="proofs-grid">
               {fileProofs.map((img, idx) => (
-                <img key={idx} src={img || null} alt={`Course File Proof ${idx + 1}`} className="proof-image" />
+                <img 
+                  key={idx} 
+                  src={img} 
+                  alt={`Course File Proof ${idx + 1}`} 
+                  className="proof-image" 
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = `https://picsum.photos/seed/${course.id}-proof-${idx}/400/300`;
+                  }}
+                />
               ))}
             </div>
           </section>
@@ -544,39 +633,36 @@ export default function CourseDetail() {
                 </button>
               </div>
               
-              <button 
-                onClick={handleWhatsAppClick} 
-                className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold bg-[#25D366] text-white hover:bg-[#20ba5a] transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
-                </svg>
-                WhatsApp
-              </button>
-
-              <a 
-                href={course.sourceUrl || "#"} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95"
-                style={{ textDecoration: 'none' }}
-              >
-                <ExternalLink className="w-5 h-5" />
-                Main Course Source
-              </a>
+              {isPurchased ? (
+                <button 
+                  className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold bg-green-600 text-white cursor-default shadow-md"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  Course Purchased
+                </button>
+              ) : (
+                <button 
+                  onClick={handleBuyNow} 
+                  disabled={isPurchasing}
+                  className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold bg-[#4D00FF] text-white hover:bg-[#3d00cc] transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 disabled:opacity-50"
+                >
+                  {isPurchasing ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Tag className="w-5 h-5" />
+                      Buy Now
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
           <div className="cta-info">
             <h3>How to Purchase</h3>
             <div className="info-box">
-              <p>Clicking the WhatsApp button will open a chat with our team.</p>
-              <p>The following message will be pre-filled for you:</p>
-              <div className="message-template">
-                Course Name: {course.title}<br/>
-                Price: {course.price}<br/>
-                Link: {window.location.href}
-              </div>
+              <p>Use the <strong>Buy Now</strong> button to purchase instantly using your wallet balance.</p>
             </div>
           </div>
         </section>
@@ -774,6 +860,10 @@ export default function CourseDetail() {
                               alt="Review proof" 
                               className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
                               referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = `https://picsum.photos/seed/review-${review.id}/400/300`;
+                              }}
                             />
                           </div>
                         )}
@@ -852,9 +942,14 @@ export default function CourseDetail() {
                       <div key={item.id} className="flex gap-4 items-start bg-white border border-gray-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                         <div className="relative flex-shrink-0">
                           <img 
-                            src={item.image || null} 
+                            src={item.image} 
                             alt={item.title} 
                             className="w-20 h-20 object-cover rounded-xl"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = `https://picsum.photos/seed/${item.id}/200/200`;
+                            }}
                           />
                           {item.additionalChoices === 'Popular' && (
                             <div className="absolute top-0 left-0 fire-effect text-white text-[8px] font-black px-2 pt-2 pb-0.5 z-10 border-b border-r border-orange-500/30 rounded-br-lg">
@@ -996,56 +1091,18 @@ export default function CourseDetail() {
                   </div>
 
                   <button 
-                    className="w-full bg-[#FF6B35] text-black py-4 rounded-2xl font-bold shadow-lg shadow-[#FF6B35]/20 hover:shadow-xl hover:shadow-[#FF6B35]/30 transition-all flex items-center justify-center gap-2 text-lg mt-4"
-                    onClick={() => {
-                      const phoneNumber = "+8801314493061";
-                      const subtotal = cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0);
-                      const discount = appliedCoupon ? (
-                        appliedCoupon.courseId 
-                          ? (Number(cartItems.find(item => String(item.id) === appliedCoupon.courseId)?.price.replace('$', '') || 0) * appliedCoupon.discount / 100)
-                          : (subtotal * appliedCoupon.discount) / 100
-                      ) : 0;
-                      const total = subtotal - discount;
-                      
-                      let message = `*Great news!* A Valuable customer is excited about your course and just placed an order!\n\n`;
-                      message += `*Order Details:*\n`;
-                      
-                      cartItems.forEach((item) => {
-                        message += `• *Course:* ${item.title}\n`;
-                        message += `• *Price:* ${item.price}\n`;
-                      });
-
-                      message += `• *Total Price:* $${total.toFixed(2)}`;
-                      if (appliedCoupon) {
-                        message += ` ( ${appliedCoupon.code} - ${appliedCoupon.discount}% )`;
-                      }
-                      message += `\n`;
-
-                      cartItems.forEach((item) => {
-                        const slug = item.title
-                          .toLowerCase()
-                          .trim()
-                          .replace(/[^\w\s-]/g, '')
-                          .replace(/[\s_-]+/g, '-')
-                          .replace(/^-+|-+$/g, '');
-                        const courseUrl = `${window.location.origin}/course/${slug}`;
-                        // Adding a zero-width space before the link to try and prevent preview
-                        message += `• *Course Link:* \u200B${courseUrl}\n`;
-                      });
-
-                      message += `\n`;
-                      const email = profile?.email || user?.email || 'Not provided';
-                      message += `*Customer Email:* ${email}\n\n`;
-                      
-                      message += `*Customer Message:*\n`;
-                      message += `I love this course, I want to buy it!. Please verify the order and provide access to the course if everything looks good.\n`;
-                      message += `Thank you!`;
-                      
-                      const encodedMessage = encodeURIComponent(message);
-                      window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');
-                    }}
+                    className="w-full bg-[#FF6B35] text-black py-4 rounded-2xl font-bold shadow-lg shadow-[#FF6B35]/20 hover:shadow-xl hover:shadow-[#FF6B35]/30 transition-all flex items-center justify-center gap-2 text-lg mt-4 disabled:opacity-50"
+                    disabled={isPurchasing}
+                    onClick={handleCheckout}
                   >
-                    Checkout via WhatsApp
+                    {isPurchasing ? (
+                      <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Check className="w-6 h-6" />
+                        Checkout with Wallet
+                      </>
+                    )}
                   </button>
                 </div>
               )}

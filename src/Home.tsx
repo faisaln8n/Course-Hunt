@@ -8,6 +8,7 @@ import { analyticsService } from './services/analyticsService';
 import { cartService } from './services/cartService';
 import { wishlistService } from './services/wishlistService';
 import { courseService } from './services/courseService';
+import { walletService } from './services/walletService';
 import { Course } from './data/courses';
 import { settingsService, AppSettings, Coupon } from './services/settingsService';
 import { Toaster, toast } from 'sonner';
@@ -133,6 +134,7 @@ export default function Home() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [settings, setSettings] = useState<AppSettings>(settingsService.getDefaultSettings());
   const [cartItems, setCartItems] = useState<Course[]>([]);
+  const [isPurchasing, setIsPurchasing] = useState(false);
   const [couponCode, setCouponCode] = useState<string>('');
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [showAllCategories, setShowAllCategories] = useState<boolean>(false);
@@ -421,7 +423,74 @@ export default function Home() {
       window.removeEventListener('courses-updated', handleCoursesUpdate);
       window.removeEventListener('settings-updated', handleSettingsUpdate);
     };
-  }, []);
+  }, [user]);
+
+  const handleCheckout = async () => {
+    if (!user) {
+      toast.error('Please login to purchase courses');
+      navigate('/login');
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      toast.error('Your cart is empty');
+      return;
+    }
+
+    const subtotal = cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0);
+    const discount = appliedCoupon ? (
+      appliedCoupon.courseId 
+        ? (Number(cartItems.find(item => String(item.id) === appliedCoupon.courseId)?.price.replace('$', '') || 0) * appliedCoupon.discount / 100)
+        : (subtotal * appliedCoupon.discount) / 100
+    ) : 0;
+    const total = subtotal - discount;
+
+    if ((profile?.walletBalance || 0) < total) {
+      toast.error(`Insufficient balance. You need $${total.toFixed(2)} but have $${(profile?.walletBalance || 0).toFixed(2)}`);
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to purchase ${cartItems.length} courses for $${total.toFixed(2)}?`)) {
+      return;
+    }
+
+    setIsPurchasing(true);
+    try {
+      // Purchase each course
+      for (const item of cartItems) {
+        // Calculate individual price if coupon applies
+        let itemPrice = Number(item.price.replace('$', ''));
+        if (appliedCoupon) {
+          if (!appliedCoupon.courseId || String(item.id) === appliedCoupon.courseId) {
+            itemPrice = itemPrice * (1 - appliedCoupon.discount / 100);
+          }
+        }
+
+        const result = await walletService.purchaseCourse(
+          user.uid,
+          String(item.id),
+          itemPrice,
+          item.title
+        );
+
+        if (result.error) {
+          throw new Error(result.error);
+        }
+      }
+
+      await cartService.clearCart();
+      setCartItems([]);
+      setAppliedCoupon(null);
+      setCouponCode('');
+      setIsCartOpen(false);
+      toast.success('Purchase successful! You can now access your courses in your profile.');
+      navigate('/profile');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to complete purchase');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
 
   const parsePrice = (priceStr: string) => {
     return parseFloat(priceStr.replace(/[^0-9.]/g, '')) || 0;
@@ -557,7 +626,7 @@ export default function Home() {
               onClick={() => setIsCartOpen(true)}
             >
               <ShoppingCart className="w-6 h-6 text-gray-700" />
-              {cartCount > 0 && (
+              {cartCount >= 0 && (
                 <span className="absolute -top-2 -right-2 bg-[#FF6B35] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
                   {cartCount}
                 </span>
@@ -892,6 +961,11 @@ export default function Home() {
                         src={course.image || null}
                         alt={course.title}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = `https://picsum.photos/seed/${course.id}/800/600`;
+                        }}
                       />
                       {course.additionalChoices === 'Popular' && (
                         <motion.div 
@@ -1192,6 +1266,11 @@ export default function Home() {
                         src={item.image || null} 
                         alt={item.title} 
                         className="w-20 h-20 object-cover rounded-xl flex-shrink-0"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = `https://picsum.photos/seed/${item.id}/200/200`;
+                        }}
                       />
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-gray-900 leading-tight mb-1 line-clamp-2">{item.title}</h4>
@@ -1315,56 +1394,18 @@ export default function Home() {
                 </div>
 
                 <button 
-                  className="w-full bg-[#FF6B35] text-black py-4 rounded-2xl font-bold shadow-lg shadow-[#FF6B35]/20 hover:shadow-xl hover:shadow-[#FF6B35]/30 transition-all flex items-center justify-center gap-2 text-lg mt-4"
-                  onClick={() => {
-                    const phoneNumber = "+8801314493061";
-                    const subtotal = cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0);
-                    const discount = appliedCoupon ? (
-                      appliedCoupon.courseId 
-                        ? (Number(cartItems.find(item => String(item.id) === appliedCoupon.courseId)?.price.replace('$', '') || 0) * appliedCoupon.discount / 100)
-                        : (subtotal * appliedCoupon.discount) / 100
-                    ) : 0;
-                    const total = subtotal - discount;
-                    
-                    let message = `*Great news!* A Valuable customer is excited about your course and just placed an order!\n\n`;
-                    message += `*Order Details:*\n`;
-                    
-                    cartItems.forEach((item) => {
-                      message += `• *Course:* ${item.title}\n`;
-                      message += `• *Price:* ${item.price}\n`;
-                    });
-
-                    message += `• *Total Price:* $${total.toFixed(2)}`;
-                    if (appliedCoupon) {
-                      message += ` ( ${appliedCoupon.code} - ${appliedCoupon.discount}% )`;
-                    }
-                    message += `\n`;
-
-                    cartItems.forEach((item) => {
-                      const slug = item.title
-                        .toLowerCase()
-                        .trim()
-                        .replace(/[^\w\s-]/g, '')
-                        .replace(/[\s_-]+/g, '-')
-                        .replace(/^-+|-+$/g, '');
-                      const courseUrl = `${window.location.origin}/course/${slug}`;
-                      // Adding a zero-width space before the link to try and prevent preview
-                      message += `• *Course Link:* \u200B${courseUrl}\n`;
-                    });
-
-                    message += `\n`;
-                    const email = profile?.email || user?.email || 'Not provided';
-                    message += `*Customer Email:* ${email}\n\n`;
-                    
-                    message += `*Customer Message:*\n`;
-                    message += `I love this course, I want to buy it!. Please verify the order and provide access to the course if everything looks good.\n`;
-                    message += `Thank you!`;
-                    
-                    const encodedMessage = encodeURIComponent(message);
-                    window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');
-                  }}
+                  className="w-full bg-[#FF6B35] text-black py-4 rounded-2xl font-bold shadow-lg shadow-[#FF6B35]/20 hover:shadow-xl hover:shadow-[#FF6B35]/30 transition-all flex items-center justify-center gap-2 text-lg mt-4 disabled:opacity-50"
+                  disabled={isPurchasing}
+                  onClick={handleCheckout}
                 >
-                  Checkout via WhatsApp
+                  {isPurchasing ? (
+                    <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Check className="w-6 h-6" />
+                      Checkout with Wallet
+                    </>
+                  )}
                 </button>
               </div>
             )}

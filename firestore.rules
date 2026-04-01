@@ -135,7 +135,17 @@ service cloud.firestore {
              (!('role' in data) || data.role in ['admin', 'user']) &&
              (!('status' in data) || data.status in ['active', 'blocked']) &&
              (!('lastLogin' in data) || (data.lastLogin is string && data.lastLogin.size() < 100)) &&
-             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() < 100));
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() < 100)) &&
+             (!('walletBalance' in data) || data.walletBalance is number) &&
+             (!('purchasedCourses' in data) || data.purchasedCourses is list);
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string &&
+             data.amount is number &&
+             data.type in ['deposit', 'purchase'] &&
+             (!('description' in data) || (data.description is string && data.description.size() < 500)) &&
+             data.timestamp is timestamp;
     }
 
     function isValidEmail(email) {
@@ -196,7 +206,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user' && uidUnchanged();
-      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role && uidNotModified()) || isAdmin();
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role && uidNotModified() && 
+                        (request.resource.data.walletBalance == resource.data.walletBalance || request.resource.data.walletBalance < resource.data.walletBalance)) || isAdmin();
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isAdmin() || (isAuthenticated() && isOwner(request.resource.data.userId) && request.resource.data.type == 'purchase');
+      allow update, delete: if false;
     }
 
     match /carts/{userId} {

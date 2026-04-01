@@ -23,8 +23,24 @@ export const courseService = {
     try {
       const q = query(collection(db, COURSES_COLLECTION), orderBy('title', 'asc'));
       const querySnapshot = await getDocs(q);
+      return querySnapshot.docs
+        .map(doc => ({
+          ...doc.data() as any,
+          id: doc.id
+        }))
+        .filter(course => course.title && course.image) as unknown as Course[];
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, COURSES_COLLECTION);
+      return [];
+    }
+  },
+
+  async getAllCoursesRaw(): Promise<Course[]> {
+    try {
+      const q = query(collection(db, COURSES_COLLECTION), orderBy('title', 'asc'));
+      const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({
-        ...doc.data(),
+        ...doc.data() as any,
         id: doc.id
       })) as unknown as Course[];
     } catch (error) {
@@ -192,10 +208,29 @@ export const courseService = {
     const q = query(collection(db, COURSES_COLLECTION), orderBy('title', 'asc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const courses = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as unknown as Course[];
+      const courses = snapshot.docs
+        .map(doc => ({
+          ...doc.data() as any,
+          id: doc.id
+        }))
+        .filter(course => course.title && course.image) as unknown as Course[];
+      callback(courses);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, COURSES_COLLECTION);
+    });
+
+    return unsubscribe;
+  },
+
+  subscribeToAllCoursesRaw(callback: (courses: Course[]) => void) {
+    const q = query(collection(db, COURSES_COLLECTION), orderBy('title', 'asc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const courses = snapshot.docs
+        .map(doc => ({
+          ...doc.data() as any,
+          id: doc.id
+        })) as unknown as Course[];
       callback(courses);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, COURSES_COLLECTION);

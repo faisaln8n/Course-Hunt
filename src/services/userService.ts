@@ -12,6 +12,8 @@ export interface UserProfile {
   status?: 'active' | 'blocked';
   lastLogin?: string;
   createdAt?: string;
+  walletBalance?: number;
+  purchasedCourses?: string[];
 }
 
 export const userService = {
@@ -28,6 +30,20 @@ export const userService = {
       handleFirestoreError(error, OperationType.GET, path);
       return null;
     }
+  },
+
+  onUserProfileSnapshot(uid: string, callback: (profile: UserProfile | null) => void): () => void {
+    const docRef = doc(db, 'users', uid);
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback({ uid, ...docSnap.data() } as UserProfile);
+      } else {
+        callback(null);
+      }
+    }, (error) => {
+      console.error("Error fetching user profile:", error);
+      handleFirestoreError(error, OperationType.GET, `users/${uid}`);
+    });
   },
 
   async createUserProfile(profile: UserProfile): Promise<void> {

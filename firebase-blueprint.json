@@ -87,8 +87,23 @@
         "role": { "type": "string", "enum": ["admin", "user"] },
         "status": { "type": "string", "enum": ["active", "blocked"] },
         "lastLogin": { "type": "string", "format": "date-time" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "walletBalance": { "type": "number", "description": "Current wallet balance" },
+        "purchasedCourses": { "type": "array", "items": { "type": "string" }, "description": "List of course IDs purchased by the user" }
       }
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A wallet transaction (deposit or purchase)",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["deposit", "purchase"] },
+        "description": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "type", "timestamp"]
     },
     "Cart": {
       "title": "Cart",
@@ -144,6 +159,10 @@
     "users": {
       "schema": "User",
       "description": "User profiles"
+    },
+    "transactions": {
+      "schema": "Transaction",
+      "description": "Wallet transaction history"
     },
     "carts": {
       "schema": "Cart",

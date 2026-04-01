@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ShieldCheck, ShoppingCart, X, User, LogOut, Target, MessageSquare } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, ShoppingCart, X, User, LogOut, Target, MessageSquare, Wallet, Check } from 'lucide-react';
 import { useUserAuth } from './components/AuthContext';
 import Logo from './components/ui/Logo';
 import { cartService } from './services/cartService';
 import { courseService } from './services/courseService';
 import { Course } from './data/courses';
 import { Toaster, toast } from 'sonner';
+import { walletService } from './services/walletService';
+import { userService } from './services/userService';
+import { useNavigate } from 'react-router-dom';
 
 export default function About() {
   const { user, logout } = useUserAuth();
   const [cartCount, setCartCount] = useState<number>(cartService.getCartCount());
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [cartItems, setCartItems] = useState<Course[]>([]);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -41,6 +46,53 @@ export default function About() {
     return () => window.removeEventListener('cart-updated', handleCartUpdate);
   }, []);
 
+  const handleCheckout = async () => {
+    if (!user) {
+      toast.error('Please login to purchase courses');
+      navigate('/login');
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      toast.error('Your cart is empty');
+      return;
+    }
+
+    setIsPurchasing(true);
+    try {
+      const balance = await walletService.getBalance(user.uid);
+      const total = cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0);
+
+      if (balance < total) {
+        toast.error(`Insufficient balance. You need $${total.toFixed(2)} but have $${balance.toFixed(2)}`);
+        setIsPurchasing(false);
+        return;
+      }
+
+      // Purchase each course
+      for (const item of cartItems) {
+        const result = await walletService.purchaseCourse(user.uid, String(item.id), Number(item.price.replace('$', '')), item.title);
+        if (!result.success) {
+          throw new Error(result.error || `Failed to purchase ${item.title}`);
+        }
+      }
+
+      // Clear cart
+      cartService.clearCart();
+      setCartItems([]);
+      setCartCount(0);
+      setIsCartOpen(false);
+      
+      toast.success('Purchase successful! You can now access your courses in your profile.');
+      navigate('/profile');
+    } catch (error: any) {
+      console.error('Checkout error:', error);
+      toast.error(error.message || 'Failed to complete purchase');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white text-gray-900 relative">
       <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-br from-[#f09433]/5 via-[#dc2743]/5 to-[#bc1888]/5" />
@@ -55,7 +107,7 @@ export default function About() {
               onClick={() => setIsCartOpen(true)}
             >
               <ShoppingCart className="w-5 h-5 text-gray-600" />
-              {cartCount > 0 && (
+              {cartCount >= 0 && (
                 <span className="absolute -top-2 -right-2 instagram-gradient text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
                   {cartCount}
                 </span>
@@ -163,9 +215,7 @@ export default function About() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => {
-                const phoneNumber = "+8801314493061";
-                const message = "Hi! I'd like to share my review about the course I received.";
-                window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
+                toast.success('Review system coming soon! You can also email us.');
               }}
               className="bg-black text-white px-12 py-5 rounded-2xl font-black text-xl shadow-xl hover:bg-gray-900 transition-all flex items-center justify-center gap-3 mx-auto"
             >
@@ -176,20 +226,18 @@ export default function About() {
 
           <div className="bg-white p-8 rounded-3xl border-2 border-[#dc2743] mb-12 text-left shadow-xl">
             <h2 className="text-2xl font-bold mb-8 flex items-center gap-2">
-              <span className="bg-[#25D366] text-white p-2 rounded-lg">
-                <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
-                </svg>
+              <span className="bg-[#FF6B35] text-white p-2 rounded-lg">
+                <Wallet className="w-6 h-6" />
               </span>
-              How to Order via WhatsApp
+              How to Purchase with Wallet
             </h2>
             <div className="space-y-6">
               {[
-                { step: 1, title: "Choose Your Course", desc: "Browse our catalog and find the course you want to enroll in." },
-                { step: 2, title: "Click WhatsApp Button", desc: "On the course detail page or in your cart, click the 'WhatsApp' or 'Checkout via WhatsApp' button." },
-                { step: 3, title: "Send the Message", desc: "A pre-filled message with course details will be ready. Just hit send to our official number." },
-                { step: 4, title: "Complete Payment", desc: "Our team will provide payment instructions for your preferred method (Bkash, Binance, etc.)." },
-                { step: 5, title: "Receive Course Link", desc: "Once payment is verified, you will receive your course access link directly on WhatsApp instantly." }
+                { step: 1, title: "Add Funds to Wallet", desc: "Contact our support team to add funds to your account wallet via Bkash, Binance, or other methods." },
+                { step: 2, title: "Choose Your Course", desc: "Browse our catalog and find the course you want to enroll in." },
+                { step: 3, title: "Add to Cart", desc: "Click the 'Add to Cart' button on the course detail page." },
+                { step: 4, title: "Checkout with Wallet", desc: "Open your cart and click 'Checkout with Wallet'. The course price will be deducted from your balance." },
+                { step: 5, title: "Instant Access", desc: "Once the purchase is complete, you will have instant access to your course in your profile." }
               ].map((item) => (
                 <div key={item.step} className="flex gap-4">
                   <div className="flex-shrink-0 w-10 h-10 instagram-gradient text-white rounded-full flex items-center justify-center font-black">
@@ -266,6 +314,11 @@ export default function About() {
                           src={item.image || null} 
                           alt={item.title} 
                           className="w-16 h-16 object-cover rounded-xl"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = `https://picsum.photos/seed/${item.id}/200/200`;
+                          }}
                         />
                         <div className="flex-1 min-w-0">
                           <h4 className="font-bold text-sm line-clamp-1">{item.title}</h4>
@@ -293,12 +346,18 @@ export default function About() {
                     <span className="text-xl font-bold">{cartItems.length}</span>
                   </div>
                   <button 
-                    className="w-full instagram-gradient text-white py-4 rounded-2xl font-bold shadow-lg shadow-[#dc2743]/20 hover:shadow-xl hover:shadow-[#dc2743]/30 transition-all"
-                    onClick={() => {
-                      toast.success('Checkout functionality coming soon!');
-                    }}
+                    className="w-full instagram-gradient text-white py-4 rounded-2xl font-bold shadow-lg shadow-[#dc2743]/20 hover:shadow-xl hover:shadow-[#dc2743]/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    disabled={isPurchasing}
+                    onClick={handleCheckout}
                   >
-                    Checkout Now
+                    {isPurchasing ? (
+                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5" />
+                        Checkout with Wallet
+                      </>
+                    )}
                   </button>
                 </div>
               )}

@@ -35,7 +35,8 @@ import {
   UserCheck,
   UserX,
   Mail,
-  Target
+  Target,
+  Wallet
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
@@ -62,6 +63,7 @@ import { courseService } from './services/courseService';
 import { settingsService, AppSettings } from './services/settingsService';
 import { userService, UserProfile } from './services/userService';
 import { presenceService } from './services/presenceService';
+import { walletService } from './services/walletService';
 
 import { auth, googleProvider } from './firebase';
 import { signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
@@ -112,6 +114,12 @@ export default function AdminDashboard() {
   const [liveUsersCount, setLiveUsersCount] = useState(0);
   const [liveUsers, setLiveUsers] = useState<any[]>([]);
 
+  // Wallet Management State
+  const [walletEmail, setWalletEmail] = useState('');
+  const [walletAmount, setWalletAmount] = useState('');
+  const [isAddingFunds, setIsAddingFunds] = useState(false);
+  const [allTransactions, setAllTransactions] = useState<any[]>([]);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -121,6 +129,14 @@ export default function AdminDashboard() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const unsubscribe = walletService.onAllTransactionsSnapshot((transactions) => {
+      setAllTransactions(transactions);
+    });
+    return () => unsubscribe();
+  }, [currentUser]);
 
   const handleFirebaseSignIn = async () => {
     try {
@@ -164,18 +180,17 @@ export default function AdminDashboard() {
         counts[click.courseId] = (counts[click.courseId] || 0) + 1;
       });
 
-      const top = Object.entries(counts)
-        .map(([courseId, count]) => ({ courseId, count }))
+      const topWithDetails = Object.entries(counts)
+        .map(([courseId, count]) => {
+          const course = courses.find(c => String(c.id) === String(courseId));
+          return { course, count };
+        })
+        .filter((item): item is { course: Course; count: number } => 
+          !!item.course && !!item.course.title && !!item.course.image
+        )
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
-      const topWithDetails = top.map(t => {
-        const course = courses.find(c => String(c.id) === String(t.courseId));
-        return {
-          course: course || { id: t.courseId, title: 'Unknown Course', price: '0', originalPrice: '0', rating: 0, reviews: 0, image: '', category: 'Unknown', additionalChoices: '' } as Course,
-          count: t.count
-        };
-      });
       setTopProducts(topWithDetails);
 
       // Process traffic sources
@@ -217,7 +232,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const loadInitialData = async () => {
       const [fetchedCourses, fetchedSettings] = await Promise.all([
-        courseService.getCourses(),
+        courseService.getAllCoursesRaw(),
         settingsService.getSettings()
       ]);
       setCourses(fetchedCourses);
@@ -225,7 +240,7 @@ export default function AdminDashboard() {
     };
 
     const handleCoursesUpdate = async () => {
-      const fetchedCourses = await courseService.getCourses();
+      const fetchedCourses = await courseService.getAllCoursesRaw();
       setCourses(fetchedCourses);
     };
 
@@ -244,8 +259,8 @@ export default function AdminDashboard() {
   }, []);
 
   const filteredCourses = courses.filter(course => 
-    course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    course.category.toLowerCase().includes(searchTerm.toLowerCase())
+    (course.title || 'Unknown').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (course.category || 'Uncategorized').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleLogout = async () => {
@@ -313,6 +328,22 @@ export default function AdminDashboard() {
     setSelectedUsers(prev => 
       prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
     );
+  };
+
+  const handleAddFunds = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!walletEmail || !walletAmount) return;
+    setIsAddingFunds(true);
+    try {
+      await walletService.addFundsByEmail(walletEmail, Number(walletAmount));
+      toast.success(`Successfully added $${walletAmount} to ${walletEmail}`);
+      setWalletEmail('');
+      setWalletAmount('');
+    } catch (error) {
+      toast.error('Failed to add funds: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsAddingFunds(false);
+    }
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -508,6 +539,134 @@ export default function AdminDashboard() {
     </div>
   );
 
+  const renderWallet = () => (
+    <div className="space-y-8">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm max-w-2xl mx-auto">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="p-3 bg-blue-50 rounded-2xl text-blue-600">
+            <Wallet className="w-8 h-8" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Wallet Management</h2>
+            <p className="text-slate-500 text-sm">Add funds to user wallets by email address.</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleAddFunds} className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">User Email Address</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input 
+                type="email"
+                required
+                value={walletEmail}
+                onChange={(e) => setWalletEmail(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                placeholder="user@example.com"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">Amount to Add ($)</label>
+            <div className="relative">
+              <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input 
+                type="number"
+                required
+                min="1"
+                value={walletAmount}
+                onChange={(e) => setWalletAmount(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                placeholder="100"
+              />
+            </div>
+          </div>
+
+          <button 
+            type="submit"
+            disabled={isAddingFunds}
+            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700 shadow-lg hover:shadow-blue-200 transition-all active:scale-95 disabled:opacity-50"
+          >
+            {isAddingFunds ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent mx-auto"></div>
+            ) : (
+              'Add Funds to Wallet'
+            )}
+          </button>
+        </form>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-50 rounded-2xl text-blue-600">
+              <Activity className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Transaction History</h2>
+              <p className="text-slate-500 text-sm">All wallet transactions across the platform.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Date</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">User</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Description</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-12 text-center text-slate-400 font-medium">
+                    No transactions found
+                  </td>
+                </tr>
+              ) : (
+                allTransactions.map((tx) => (
+                  <tr key={tx.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-4 px-4">
+                      <div className="text-sm font-bold text-slate-900">
+                        {tx.timestamp?.toDate ? tx.timestamp.toDate().toLocaleDateString() : 'Pending'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-medium">
+                        {tx.timestamp?.toDate ? tx.timestamp.toDate().toLocaleTimeString() : ''}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="text-sm font-bold text-slate-900">{tx.userEmail}</div>
+                      <div className="text-[10px] text-slate-400 font-medium truncate max-w-[150px]">{tx.userId}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="text-sm font-medium text-slate-600">{tx.description}</div>
+                      <div className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter bg-slate-100 text-slate-500 mt-1">
+                        {tx.type}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      <div className={cn(
+                        "text-sm font-black",
+                        tx.amount > 0 ? "text-green-600" : "text-red-600"
+                      )}>
+                        {tx.amount > 0 ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderDashboard = () => (
     <div className="space-y-8">
       {/* Stats Cards */}
@@ -593,10 +752,14 @@ export default function AdminDashboard() {
                     {i + 1}
                   </div>
                   <img 
-                    src={item.course.image || null} 
+                    src={item.course.image} 
                     alt={item.course.title} 
                     className="h-10 w-10 rounded-lg object-cover"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = `https://picsum.photos/seed/${item.course.id}/100/100`;
+                    }}
                   />
                   <div className="flex-1 overflow-hidden">
                     <p className="truncate text-sm font-bold text-slate-900">{item.course.title}</p>
@@ -794,7 +957,15 @@ export default function AdminDashboard() {
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 overflow-hidden rounded-full bg-slate-100">
                           {user.photoURL ? (
-                            <img src={user.photoURL} alt={user.displayName} className="h-full w-full object-cover" />
+                            <img 
+                              src={user.photoURL} 
+                              alt={user.displayName} 
+                              className="h-full w-full object-cover" 
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = `https://api.dicebear.com/7.x/notionists/svg?seed=${user.email}`;
+                              }}
+                            />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center bg-blue-50 text-blue-600 font-bold">
                               {user.email[0].toUpperCase()}
@@ -1361,6 +1532,13 @@ export default function AdminDashboard() {
               Users
             </button>
             <button 
+              onClick={() => setActiveTab('wallet')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'wallet' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <Wallet className="h-4 w-4" />
+              Wallet
+            </button>
+            <button 
               onClick={() => setActiveTab('traffic')}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'traffic' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
             >
@@ -1393,7 +1571,7 @@ export default function AdminDashboard() {
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur-md">
           <div className="flex items-center justify-between px-8 py-4">
             <h1 className="text-xl font-bold text-slate-900">
-              {activeTab === 'dashboard' ? 'Admin Overview' : activeTab === 'courses' ? 'Manage Courses' : activeTab === 'users' ? 'User Management' : activeTab === 'traffic' ? 'Live Traffic' : 'Panel Settings'}
+              {activeTab === 'dashboard' ? 'Admin Overview' : activeTab === 'courses' ? 'Manage Courses' : activeTab === 'users' ? 'User Management' : activeTab === 'wallet' ? 'Wallet Management' : activeTab === 'traffic' ? 'Live Traffic' : 'Panel Settings'}
             </h1>
             <div className="flex items-center gap-4">
               {activeTab === 'users' && (
@@ -1446,6 +1624,7 @@ export default function AdminDashboard() {
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'settings' && renderSettings()}
           {activeTab === 'users' && renderUsers()}
+          {activeTab === 'wallet' && renderWallet()}
           {activeTab === 'traffic' && renderLiveTraffic()}
           
           {activeTab === 'courses' && (
@@ -1494,10 +1673,14 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <img 
-                              src={course.image || null} 
+                              src={course.image} 
                               alt={course.title} 
                               className="h-10 w-10 rounded-lg object-cover"
                               referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = `https://picsum.photos/seed/${course.id}/100/100`;
+                              }}
                             />
                             <div>
                               <p className="font-bold text-slate-900">{course.title}</p>
@@ -1671,7 +1854,15 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-4">
                       <div className="relative h-20 w-20 overflow-hidden rounded-xl border-2 border-dashed border-slate-200 bg-slate-50">
                         {previewImage ? (
-                          <img src={previewImage || null} alt="Preview" className="h-full w-full object-cover" />
+                          <img 
+                            src={previewImage} 
+                            alt="Preview" 
+                            className="h-full w-full object-cover" 
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = 'https://picsum.photos/seed/preview/800/600';
+                            }}
+                          />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center">
                             <ImageIcon className="h-6 w-6 text-slate-400" />
@@ -1755,7 +1946,15 @@ export default function AdminDashboard() {
                     <div className="flex flex-wrap gap-2 mb-2">
                       {galleryPreviews.map((p, i) => (
                         <div key={i} className="relative h-12 w-12 rounded-lg overflow-hidden border border-slate-200">
-                          <img src={p || null} alt="Preview" className="h-full w-full object-cover" />
+                          <img 
+                            src={p} 
+                            alt="Preview" 
+                            className="h-full w-full object-cover" 
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = `https://picsum.photos/seed/gallery-${i}/400/300`;
+                            }}
+                          />
                           <button 
                             type="button"
                             onClick={() => setGalleryPreviews(prev => prev.filter((_, idx) => idx !== i))}
@@ -1794,7 +1993,15 @@ export default function AdminDashboard() {
                     <div className="flex flex-wrap gap-2 mb-2">
                       {fileImagesPreviews.map((p, i) => (
                         <div key={i} className="relative h-12 w-12 rounded-lg overflow-hidden border border-slate-200">
-                          <img src={p || null} alt="Preview" className="h-full w-full object-cover" />
+                          <img 
+                            src={p} 
+                            alt="Preview" 
+                            className="h-full w-full object-cover" 
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = `https://picsum.photos/seed/file-${i}/400/300`;
+                            }}
+                          />
                           <button 
                             type="button"
                             onClick={() => setFileImagesPreviews(prev => prev.filter((_, idx) => idx !== i))}

@@ -29,11 +29,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    let profileUnsubscribe: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       cartService.setUserId(firebaseUser?.uid || null);
       wishlistService.setUserId(firebaseUser?.uid || null);
       
+      if (profileUnsubscribe) {
+        profileUnsubscribe();
+        profileUnsubscribe = null;
+      }
+
       if (firebaseUser) {
         try {
           let userProfile = await userService.getUserProfile(firebaseUser.uid);
@@ -48,10 +55,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               role: 'user',
               status: 'active',
               createdAt: new Date().toISOString(),
-              lastLogin: new Date().toISOString()
+              lastLogin: new Date().toISOString(),
+              walletBalance: 0,
+              purchasedCourses: []
             };
             await userService.createUserProfile(newProfile);
-            userProfile = newProfile;
           } else {
             // Update last login and ensure email is stored
             const updates: Partial<UserProfile> = {
@@ -64,19 +72,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             
             await userService.updateUserProfile(firebaseUser.uid, updates);
-            userProfile = { ...userProfile, ...updates };
           }
-          setProfile(userProfile);
+
+          // Set up real-time listener for the profile
+          profileUnsubscribe = userService.onUserProfileSnapshot(firebaseUser.uid, (updatedProfile) => {
+            setProfile(updatedProfile);
+            setLoading(false);
+          });
+
         } catch (error) {
           console.error("Error handling user profile:", error);
           toast.error('Failed to update user profile. Please check your connection.');
+          setLoading(false);
         }
       } else {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+      if (profileUnsubscribe) profileUnsubscribe();
+    };
   }, []);
 
   const logout = async () => {
