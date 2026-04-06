@@ -137,6 +137,26 @@
         "isGuest": { "type": "boolean" },
         "email": { "type": "string" }
       }
+    },
+    "Tool": {
+      "title": "Tool",
+      "description": "A digital tool offered on the platform",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "rating": { "type": "number" },
+        "reviews": { "type": "number" },
+        "image": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "sourceUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "price", "image", "category", "description"]
     }
   },
   "firestore": {
@@ -175,6 +195,10 @@
     "presence": {
       "schema": "Presence",
       "description": "Live user presence"
+    },
+    "tools": {
+      "schema": "Tool",
+      "description": "Collection of digital tools"
     }
   }
 }

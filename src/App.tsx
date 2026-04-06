@@ -11,7 +11,7 @@ import Home from './Home';
 import CourseDetail from './CourseDetail';
 import AdminDashboard from './Admin.tsx';
 import AdminLogin from './AdminLogin.tsx';
-import About from './About.tsx';
+import Tools from './Tools.tsx';
 import Login from './Login.tsx';
 import Profile from './Profile.tsx';
 import { AuthProvider } from './components/AuthContext';
@@ -57,6 +57,17 @@ const ProtectedRoute = ({ children, loginElement }: { children: React.ReactNode,
   return loginElement ? <>{loginElement}</> : <Navigate to="/admin" />;
 };
 
+const ReferralTracker = () => {
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      localStorage.setItem('referredBy', ref);
+    }
+  }, []);
+  return null;
+};
+
 export default function App() {
   React.useEffect(() => {
     presenceService.startPresence();
@@ -66,10 +77,11 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
+        <ReferralTracker />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/course/:slug" element={<CourseDetail />} />
-          <Route path="/about" element={<About />} />
+          <Route path="/tools" element={<Tools />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Login />} />
           <Route path="/profile" element={<Profile />} />

@@ -614,10 +614,10 @@ export default function Home() {
 
           <div className="hidden md:flex items-center space-x-6">
             <Link 
-              to="/about" 
+              to="/tools" 
               className="text-gray-700 font-semibold hover:text-[#FF6B35] transition-colors"
             >
-              About
+              Buy Tools
             </Link>
             <motion.div 
               className="relative cursor-pointer"
@@ -693,11 +693,11 @@ export default function Home() {
                 }}
               >
                 <Link 
-                  to="/about"
+                  to="/tools"
                   className="text-center text-lg font-bold text-gray-900 hover:text-[#FF6B35]"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  About
+                  Buy Tools
                 </Link>
                 <div 
                   className="flex items-center justify-center space-x-2 py-2 cursor-pointer"

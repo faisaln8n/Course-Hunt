@@ -36,7 +36,9 @@ import {
   UserX,
   Mail,
   Target,
-  Wallet
+  Wallet,
+  Wrench,
+  ShoppingCart
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
@@ -58,12 +60,14 @@ import {
   Cell
 } from 'recharts';
 import { Course } from './data/courses';
+import { Tool } from './data/tools';
 import { analyticsService } from './services/analyticsService';
 import { courseService } from './services/courseService';
+import { toolService } from './services/toolService';
 import { settingsService, AppSettings } from './services/settingsService';
 import { userService, UserProfile } from './services/userService';
 import { presenceService } from './services/presenceService';
-import { walletService } from './services/walletService';
+import { walletService, DepositRequest, WithdrawalRequest, ToolOrder } from './services/walletService';
 
 import { auth, googleProvider } from './firebase';
 import { signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
@@ -73,17 +77,26 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [courses, setCourses] = useState<Course[]>([]);
+  const [tools, setTools] = useState<Tool[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddToolModalOpen, setIsAddToolModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [editingTool, setEditingTool] = useState<Tool | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
   const [fileImagesPreviews, setFileImagesPreviews] = useState<string[]>([]);
   
   const [selectedCourses, setSelectedCourses] = useState<(string | number)[]>([]);
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+  const [toolToDelete, setToolToDelete] = useState<Tool | null>(null);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  const [toolOrders, setToolOrders] = useState<ToolOrder[]>([]);
+  const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
+  const [orderAccountInfo, setOrderAccountInfo] = useState('');
   
   // Auth State
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
@@ -105,6 +118,14 @@ export default function AdminDashboard() {
   });
   const [editingCouponIndex, setEditingCouponIndex] = useState<number | null>(null);
 
+  // Deposit Coupon Form State
+  const [depositCouponForm, setDepositCouponForm] = useState({
+    code: '',
+    bonus: '',
+    expiryDate: ''
+  });
+  const [editingDepositCouponIndex, setEditingDepositCouponIndex] = useState<number | null>(null);
+
   // Analytics State
   const [timeframe, setTimeframe] = useState(7);
   const [selectedCourseId, setSelectedCourseId] = useState<string | 'all'>('all');
@@ -119,6 +140,8 @@ export default function AdminDashboard() {
   const [walletAmount, setWalletAmount] = useState('');
   const [isAddingFunds, setIsAddingFunds] = useState(false);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
+  const [depositRequests, setDepositRequests] = useState<DepositRequest[]>([]);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
 
   const navigate = useNavigate();
 
@@ -132,10 +155,24 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!currentUser) return;
-    const unsubscribe = walletService.onAllTransactionsSnapshot((transactions) => {
+    const unsubscribeTx = walletService.onAllTransactionsSnapshot((transactions) => {
       setAllTransactions(transactions);
     });
-    return () => unsubscribe();
+    const unsubscribeReqs = walletService.onDepositRequestsSnapshot((requests) => {
+      setDepositRequests(requests);
+    });
+    const unsubscribeWithdrawals = walletService.onAllWithdrawalsSnapshot((requests) => {
+      setWithdrawalRequests(requests);
+    });
+    const unsubscribeToolOrders = walletService.onAllToolOrdersSnapshot((orders) => {
+      setToolOrders(orders);
+    });
+    return () => {
+      unsubscribeTx();
+      unsubscribeReqs();
+      unsubscribeWithdrawals();
+      unsubscribeToolOrders();
+    };
   }, [currentUser]);
 
   const handleFirebaseSignIn = async () => {
@@ -231,11 +268,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      const [fetchedCourses, fetchedSettings] = await Promise.all([
+      const [fetchedCourses, fetchedTools, fetchedSettings] = await Promise.all([
         courseService.getAllCoursesRaw(),
+        toolService.getTools(),
         settingsService.getSettings()
       ]);
       setCourses(fetchedCourses);
+      setTools(fetchedTools);
       setSettings(fetchedSettings);
     };
 
@@ -262,6 +301,82 @@ export default function AdminDashboard() {
     (course.title || 'Unknown').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (course.category || 'Uncategorized').toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleToolDelete = async () => {
+    if (!toolToDelete) return;
+    setIsDeleting(true);
+    try {
+      await toolService.deleteTool(toolToDelete.id);
+      setTools(prev => prev.filter(t => t.id !== toolToDelete.id));
+      setSelectedTools(prev => prev.filter(id => id !== toolToDelete.id));
+      setToolToDelete(null);
+      toast.success('Tool deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete tool');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleAddTool = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const newTool: Omit<Tool, 'id'> = {
+      title: formData.get('title') as string,
+      category: formData.get('category') as string,
+      price: Number(formData.get('price')),
+      originalPrice: Number(formData.get('originalPrice')),
+      rating: Number(formData.get('rating')),
+      reviews: Number(formData.get('reviews') || 0),
+      image: formData.get('image') as string || previewImage || `https://picsum.photos/seed/${Date.now()}/800/600`,
+      description: formData.get('description') as string,
+      features: (formData.get('features') as string)?.split('\n').filter(f => f.trim()),
+      sourceUrl: formData.get('sourceUrl') as string,
+      password: formData.get('password') as string
+    };
+
+    try {
+      const result = await toolService.addTool(newTool);
+      if (result.id) {
+        setTools(prev => [...prev, { ...newTool, id: result.id! }]);
+        setIsAddToolModalOpen(false);
+        setPreviewImage(null);
+        toast.success('Tool added successfully');
+      }
+    } catch (error) {
+      toast.error('Failed to add tool');
+    }
+  };
+
+  const handleEditTool = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingTool) return;
+    const formData = new FormData(e.currentTarget);
+    const updatedTool: Tool = {
+      ...editingTool,
+      title: formData.get('title') as string,
+      category: formData.get('category') as string,
+      price: Number(formData.get('price')),
+      originalPrice: Number(formData.get('originalPrice')),
+      rating: Number(formData.get('rating')),
+      reviews: Number(formData.get('reviews') || 0),
+      image: formData.get('image') as string || previewImage || editingTool.image,
+      description: formData.get('description') as string,
+      features: (formData.get('features') as string)?.split('\n').filter(f => f.trim()),
+      sourceUrl: formData.get('sourceUrl') as string,
+      password: formData.get('password') as string
+    };
+
+    try {
+      await toolService.updateTool(updatedTool);
+      setTools(prev => prev.map(t => t.id === updatedTool.id ? updatedTool : t));
+      setEditingTool(null);
+      setPreviewImage(null);
+      toast.success('Tool updated successfully');
+    } catch (error) {
+      toast.error('Failed to update tool');
+    }
+  };
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -666,6 +781,558 @@ export default function AdminDashboard() {
       </div>
     </div>
   );
+
+  const renderWithdrawals = () => (
+    <div className="space-y-8">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-orange-50 rounded-2xl text-[#FF6B35]">
+              <DollarSign className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Withdrawal Requests</h2>
+              <p className="text-slate-500 text-sm">Manage and process affiliate withdrawal requests.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">User</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Method</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Details</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {withdrawalRequests.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400 font-medium">
+                    No withdrawal requests found
+                  </td>
+                </tr>
+              ) : (
+                withdrawalRequests.map((req) => (
+                  <tr key={req.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-4 px-4">
+                      <div className="text-sm font-bold text-slate-900">{req.userEmail}</div>
+                      <div className="text-[10px] text-slate-400 font-medium">
+                        {req.timestamp?.toDate ? req.timestamp.toDate().toLocaleString() : 'Just now'}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={cn(
+                        "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                        req.method === 'bKash' ? "bg-pink-100 text-pink-600" : "bg-yellow-100 text-yellow-700"
+                      )}>
+                        {req.method}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 font-black text-slate-900">${req.amount}</td>
+                    <td className="py-4 px-4">
+                      <div className="text-xs font-mono bg-slate-100 p-1 rounded">
+                        {req.method === 'bKash' ? `bKash: ${req.details}` : `UID: ${req.details}`}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={cn(
+                        "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                        req.status === 'Pending' ? "bg-blue-100 text-blue-600" :
+                        req.status === 'Processed' ? "bg-green-100 text-green-600" :
+                        "bg-red-100 text-red-600"
+                      )}>
+                        {req.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      {req.status === 'Pending' && (
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const result = await walletService.updateWithdrawalStatus(req.id!, 'Processed');
+                                if (result.success) {
+                                  toast.success('Withdrawal marked as processed');
+                                } else {
+                                  toast.error(result.error || 'Failed to process');
+                                }
+                              } catch (err) {
+                                toast.error('An error occurred');
+                              }
+                            }}
+                            className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
+                            title="Approve"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const result = await walletService.updateWithdrawalStatus(req.id!, 'Rejected');
+                                if (result.success) {
+                                  toast.success('Withdrawal rejected and funds refunded');
+                                } else {
+                                  toast.error(result.error || 'Failed to reject');
+                                }
+                              } catch (err) {
+                                toast.error('An error occurred');
+                              }
+                            }}
+                            className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                            title="Reject"
+                          >
+                            <Ban className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderPaymentProofs = () => (
+    <div className="space-y-8">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">
+              <ShieldCheck className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Payment Proofs Review</h2>
+              <p className="text-slate-500 text-sm">Review and approve user deposit requests.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">User</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Method</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Details</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Screenshot</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {depositRequests.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                    No deposit requests found
+                  </td>
+                </tr>
+              ) : (
+                depositRequests.map((req) => (
+                  <tr key={req.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-4 px-4">
+                      <div className="text-sm font-bold text-slate-900">{req.userEmail}</div>
+                      <div className="text-[10px] text-slate-400 font-medium">
+                        {req.timestamp?.toDate ? req.timestamp.toDate().toLocaleString() : 'Just now'}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={cn(
+                        "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                        req.method === 'bKash' ? "bg-pink-100 text-pink-600" : "bg-yellow-100 text-yellow-700"
+                      )}>
+                        {req.method}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 font-black text-slate-900">${req.amount}</td>
+                    <td className="py-4 px-4">
+                      {req.method === 'bKash' ? (
+                        <div className="text-xs font-mono bg-slate-100 p-1 rounded">TxID: {req.transactionId}</div>
+                      ) : (
+                        <div className="text-xs font-mono bg-slate-100 p-1 rounded">UID: {req.binanceUid}</div>
+                      )}
+                      {req.couponCode && (
+                        <div className="mt-1 inline-flex items-center gap-1 text-[9px] font-black bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                          <Tag className="w-2.5 h-2.5" />
+                          {req.couponCode}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="relative group">
+                        {req.screenshotUrl ? (
+                          <img 
+                            src={req.screenshotUrl} 
+                            alt="Proof" 
+                            className="h-16 w-16 rounded-xl object-cover border-2 border-slate-200 cursor-pointer hover:scale-110 hover:shadow-xl transition-all"
+                            onClick={() => window.open(req.screenshotUrl, '_blank')}
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
+                            }}
+                          />
+                        ) : (
+                          <div className="h-16 w-16 rounded-xl bg-slate-100 flex items-center justify-center border-2 border-dashed border-slate-200">
+                            <ImageIcon className="h-6 w-6 text-slate-300" />
+                          </div>
+                        )}
+                        <div className="absolute -top-2 -right-2 bg-white rounded-full shadow-md p-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border border-slate-100">
+                          <Eye className="h-3 w-3 text-blue-600" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={cn(
+                        "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                        req.status === 'Pending' ? "bg-blue-100 text-blue-600" :
+                        req.status === 'Paid' ? "bg-green-100 text-green-600" :
+                        "bg-red-100 text-red-600"
+                      )}>
+                        {req.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      {req.status === 'Pending' && (
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              const confirmApprove = window.confirm('Are you sure you want to approve this payment? This will add funds to the user\'s wallet.');
+                              if (!confirmApprove) return;
+                              
+                              try {
+                                const result = await walletService.updateDepositStatus(req.id!, 'Paid');
+                                if (result.success) {
+                                  toast.success('Payment approved and funds added to wallet');
+                                } else {
+                                  toast.error(result.error || 'Failed to approve');
+                                }
+                              } catch (err) {
+                                console.error('Approval error:', err);
+                                toast.error('An error occurred during approval');
+                              }
+                            }}
+                            className="rounded-xl bg-green-500 p-2.5 text-white hover:bg-green-600 shadow-sm hover:shadow-md transition-all active:scale-95"
+                            title="Approve (Paid)"
+                          >
+                            <CheckCircle className="h-5 w-5" />
+                          </button>
+                          <button 
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              const confirmReject = window.confirm('Are you sure you want to reject this payment?');
+                              if (!confirmReject) return;
+
+                              try {
+                                const result = await walletService.updateDepositStatus(req.id!, 'Rejected');
+                                if (result.success) {
+                                  toast.error('Payment rejected');
+                                } else {
+                                  toast.error(result.error || 'Failed to reject');
+                                }
+                              } catch (err) {
+                                console.error('Rejection error:', err);
+                                toast.error('An error occurred during rejection');
+                              }
+                            }}
+                            className="rounded-xl bg-red-500 p-2.5 text-white hover:bg-red-600 shadow-sm hover:shadow-md transition-all active:scale-95"
+                            title="Reject"
+                          >
+                            <UserX className="h-5 w-5" />
+                          </button>
+                          <button 
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              const confirmDecline = window.confirm('Are you sure you want to decline this payment?');
+                              if (!confirmDecline) return;
+
+                              try {
+                                const result = await walletService.updateDepositStatus(req.id!, 'Declined');
+                                if (result.success) {
+                                  toast.error('Payment declined');
+                                } else {
+                                  toast.error(result.error || 'Failed to decline');
+                                }
+                              } catch (err) {
+                                console.error('Decline error:', err);
+                                toast.error('An error occurred during decline');
+                              }
+                            }}
+                            className="rounded-xl bg-slate-500 p-2.5 text-white hover:bg-slate-600 shadow-sm hover:shadow-md transition-all active:scale-95"
+                            title="Decline"
+                          >
+                            <Ban className="h-5 w-5" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderToolOrders = () => {
+    const filteredOrders = toolOrders.filter(order => 
+      order.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.toolTitle.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-900">Tool Purchase Orders</h2>
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full text-xs font-bold text-slate-600">
+            {filteredOrders.length} Orders
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">User</th>
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Tool</th>
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Date</th>
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-900">{order.userEmail}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{order.userId}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm font-bold text-slate-900">{order.toolTitle}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm font-black text-slate-900">${order.amount}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        order.status === 'Purchased' ? "bg-green-100 text-green-600" :
+                        order.status === 'Rejected' ? "bg-red-100 text-red-600" :
+                        "bg-yellow-100 text-yellow-600"
+                      )}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs text-slate-500">
+                        {order.timestamp?.toDate().toLocaleDateString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {order.status === 'Ordered' ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => {
+                              setIsUpdatingOrder(order.id!);
+                              setOrderAccountInfo(order.accountInfo || '');
+                            }}
+                            className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                            title="Process Order"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => walletService.updateToolOrderStatus(order.id!, 'Rejected')}
+                            className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                            title="Reject Order"
+                          >
+                            <Ban className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            setIsUpdatingOrder(order.id!);
+                            setOrderAccountInfo(order.accountInfo || '');
+                          }}
+                          className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-slate-100 transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Update Order Modal */}
+        {isUpdatingOrder && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Process Tool Order</h3>
+                  <button onClick={() => setIsUpdatingOrder(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                    <CloseIcon className="w-6 h-6 text-slate-400" />
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Account Info / Delivery Details</label>
+                    <textarea 
+                      value={orderAccountInfo}
+                      onChange={(e) => setOrderAccountInfo(e.target.value)}
+                      placeholder="Enter account credentials, download links, or license keys..."
+                      className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-[#FF6B35] outline-none transition-all font-medium min-h-[150px]"
+                    />
+                    <p className="mt-2 text-[10px] text-slate-400 font-medium">This information will be visible to the user once the order is marked as Purchased.</p>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => setIsUpdatingOrder(null)}
+                      className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        const result = await walletService.updateToolOrderStatus(isUpdatingOrder, 'Purchased', orderAccountInfo);
+                        if (result.success) {
+                          toast.success('Order updated successfully');
+                          setIsUpdatingOrder(null);
+                        } else {
+                          toast.error(result.error || 'Failed to update order');
+                        }
+                      }}
+                      className="flex-1 py-4 bg-[#FF6B35] text-black rounded-2xl font-black uppercase tracking-widest hover:shadow-xl transition-all"
+                    >
+                      Mark as Purchased
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderTools = () => {
+    const filteredTools = tools.filter(tool => 
+      tool.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tool.category.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return (
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/50 px-6 py-4">
+          <h2 className="font-bold text-slate-900">Tool List</h2>
+          <button 
+            onClick={() => toast.info('Filtering coming soon')}
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900"
+          >
+            <Filter className="h-4 w-4" />
+            Filter
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <th className="px-6 py-4">Tool</th>
+                <th className="px-6 py-4">Category</th>
+                <th className="px-6 py-4">Price</th>
+                <th className="px-6 py-4">Rating</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredTools.map((tool) => (
+                <tr key={tool.id} className="group transition-colors hover:bg-slate-50/50">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={tool.image} 
+                        alt={tool.title} 
+                        className="h-10 w-10 rounded-lg object-cover"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = `https://picsum.photos/seed/${tool.id}/100/100`;
+                        }}
+                      />
+                      <div>
+                        <p className="font-bold text-slate-900">{tool.title}</p>
+                        <p className="text-xs text-slate-500">ID: #{tool.id}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                      {tool.category}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 font-medium text-slate-900">${tool.price}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-slate-900">{tool.rating}</span>
+                      <span className="text-slate-400">({tool.reviews})</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button 
+                        onClick={() => {
+                          setEditingTool(tool);
+                          setPreviewImage(tool.image);
+                        }}
+                        className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-indigo-600" 
+                        title="Edit"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => setToolToDelete(tool)}
+                        className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-red-600" 
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
   const renderDashboard = () => (
     <div className="space-y-8">
@@ -1472,6 +2139,201 @@ export default function AdminDashboard() {
 
         </div>
       </div>
+
+      {/* Manage Deposit Coupons Section */}
+      <div id="manage-deposit-coupons" className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="rounded-lg bg-green-50 p-2">
+            <DollarSign className="h-5 w-5 text-green-600" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Manage Deposit Coupons</h2>
+        </div>
+
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-500 uppercase">Coupon Code</label>
+              <input 
+                type="text"
+                value={depositCouponForm.code}
+                onChange={(e) => setDepositCouponForm({ ...depositCouponForm, code: e.target.value.toUpperCase() })}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                placeholder="e.g. BONUS10"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-500 uppercase">Bonus (%)</label>
+              <input 
+                type="number"
+                value={depositCouponForm.bonus}
+                onChange={(e) => setDepositCouponForm({ ...depositCouponForm, bonus: e.target.value })}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                placeholder="e.g. 10"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-500 uppercase">Expiry Date</label>
+              <input 
+                type="datetime-local"
+                value={depositCouponForm.expiryDate}
+                onChange={(e) => setDepositCouponForm({ ...depositCouponForm, expiryDate: e.target.value })}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <button 
+                type="button"
+                onClick={async () => {
+                  const { code, bonus, expiryDate } = depositCouponForm;
+                  const trimmedCode = code.trim();
+                  const numBonus = Number(bonus);
+                  
+                  if (trimmedCode && numBonus > 0) {
+                    const isDuplicate = (settings.depositCoupons || []).some((c, idx) => 
+                      idx !== editingDepositCouponIndex && c.code === trimmedCode
+                    );
+                    
+                    if (isDuplicate) {
+                      toast.error('Coupon code already exists');
+                      return;
+                    }
+
+                    let newCoupons;
+                    if (editingDepositCouponIndex !== null) {
+                      newCoupons = (settings.depositCoupons || []).map((c, idx) => 
+                        idx === editingDepositCouponIndex ? { ...c, code: trimmedCode, bonusPercentage: numBonus, expiryDate: expiryDate || undefined } : c
+                      );
+                    } else {
+                      newCoupons = [...(settings.depositCoupons || []), { code: trimmedCode, bonusPercentage: numBonus, isActive: true, expiryDate: expiryDate || undefined }];
+                    }
+
+                    const newSettings = { ...settings, depositCoupons: newCoupons };
+                    setSettings(newSettings);
+                    
+                    const result = await settingsService.updateSettings(newSettings);
+                    if (!result.error) {
+                      toast.success(editingDepositCouponIndex !== null ? 'Deposit coupon updated' : 'Deposit coupon added');
+                      setDepositCouponForm({ code: '', bonus: '', expiryDate: '' });
+                      setEditingDepositCouponIndex(null);
+                    } else {
+                      toast.error('Failed to save to database');
+                    }
+                  } else {
+                    toast.error('Please enter a valid code and bonus');
+                  }
+                }}
+                className={cn(
+                  "w-full rounded-xl py-3 text-sm font-bold text-white transition-all",
+                  editingDepositCouponIndex !== null ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-900 hover:bg-slate-800"
+                )}
+              >
+                {editingDepositCouponIndex !== null ? 'Update' : 'Add'}
+              </button>
+              {editingDepositCouponIndex !== null && (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setDepositCouponForm({ code: '', bonus: '', expiryDate: '' });
+                    setEditingDepositCouponIndex(null);
+                  }}
+                  className="rounded-xl bg-slate-100 p-3 text-slate-600 hover:bg-slate-200"
+                >
+                  <CloseIcon className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="min-w-[800px] w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                <tr>
+                  <th className="px-6 py-3">Code</th>
+                  <th className="px-6 py-3">Bonus</th>
+                  <th className="px-6 py-3">Expiry</th>
+                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(settings.depositCoupons || []).map((coupon, i) => {
+                  const isExpired = coupon.expiryDate && new Date(coupon.expiryDate) < new Date();
+                  return (
+                    <tr key={i}>
+                      <td className="px-6 py-4 font-bold text-slate-900">{coupon.code}</td>
+                      <td className="px-6 py-4 text-slate-600">{coupon.bonusPercentage}%</td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {coupon.expiryDate ? (
+                          <span className={`inline-flex items-center gap-1 text-xs ${isExpired ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
+                            <Clock className="h-3 w-3" />
+                            {new Date(coupon.expiryDate).toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">No Expiry</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <button 
+                          type="button"
+                          onClick={async () => {
+                            const newCoupons = (settings.depositCoupons || []).map((c, idx) => 
+                              idx === i ? { ...c, isActive: !c.isActive } : c
+                            );
+                            const newSettings = { ...settings, depositCoupons: newCoupons };
+                            setSettings(newSettings);
+                            await settingsService.updateSettings(newSettings);
+                            toast.success(`Coupon ${newCoupons[i].isActive ? 'activated' : 'deactivated'}`);
+                          }}
+                          className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-medium ${coupon.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}
+                        >
+                          {coupon.isActive ? 'Active' : 'Inactive'}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setDepositCouponForm({
+                                code: coupon.code,
+                                bonus: String(coupon.bonusPercentage),
+                                expiryDate: coupon.expiryDate || ''
+                              });
+                              setEditingDepositCouponIndex(i);
+                              document.getElementById('manage-deposit-coupons')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="text-slate-400 hover:text-blue-600 transition-colors"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={async () => {
+                              const newCoupons = (settings.depositCoupons || []).filter((_, idx) => idx !== i);
+                              const newSettings = { ...settings, depositCoupons: newCoupons };
+                              setSettings(newSettings);
+                              await settingsService.updateSettings(newSettings);
+                              toast.success('Coupon deleted');
+                            }}
+                            className="text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {(!settings.depositCoupons || settings.depositCoupons.length === 0) && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No deposit coupons created yet</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 
@@ -1525,6 +2387,20 @@ export default function AdminDashboard() {
               Courses
             </button>
             <button 
+              onClick={() => setActiveTab('tools')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'tools' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <Wrench className="h-4 w-4" />
+              Tools
+            </button>
+            <button 
+              onClick={() => setActiveTab('tool-orders')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'tool-orders' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Tool Orders
+            </button>
+            <button 
               onClick={() => setActiveTab('users')}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
             >
@@ -1537,6 +2413,20 @@ export default function AdminDashboard() {
             >
               <Wallet className="h-4 w-4" />
               Wallet
+            </button>
+            <button 
+              onClick={() => setActiveTab('payments')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'payments' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Payment Proofs
+            </button>
+            <button 
+              onClick={() => setActiveTab('withdrawals')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'withdrawals' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <DollarSign className="h-4 w-4" />
+              Withdrawals
             </button>
             <button 
               onClick={() => setActiveTab('traffic')}
@@ -1571,7 +2461,7 @@ export default function AdminDashboard() {
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur-md">
           <div className="flex items-center justify-between px-8 py-4">
             <h1 className="text-xl font-bold text-slate-900">
-              {activeTab === 'dashboard' ? 'Admin Overview' : activeTab === 'courses' ? 'Manage Courses' : activeTab === 'users' ? 'User Management' : activeTab === 'wallet' ? 'Wallet Management' : activeTab === 'traffic' ? 'Live Traffic' : 'Panel Settings'}
+              {activeTab === 'dashboard' ? 'Admin Overview' : activeTab === 'courses' ? 'Manage Courses' : activeTab === 'tools' ? 'Manage Tools' : activeTab === 'tool-orders' ? 'Tool Orders' : activeTab === 'users' ? 'User Management' : activeTab === 'wallet' ? 'Wallet Management' : activeTab === 'payments' ? 'Payment Proofs' : activeTab === 'withdrawals' ? 'Withdrawal Requests' : activeTab === 'traffic' ? 'Live Traffic' : 'Panel Settings'}
             </h1>
             <div className="flex items-center gap-4">
               {activeTab === 'users' && (
@@ -1616,6 +2506,27 @@ export default function AdminDashboard() {
                   </button>
                 </>
               )}
+              {activeTab === 'tools' && (
+                <>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Search tools..." 
+                      className="w-64 rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                  <button 
+                    onClick={() => setIsAddToolModalOpen(true)}
+                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-blue-700 hover:shadow-lg active:scale-95"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add New Tool
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </header>
@@ -1625,8 +2536,13 @@ export default function AdminDashboard() {
           {activeTab === 'settings' && renderSettings()}
           {activeTab === 'users' && renderUsers()}
           {activeTab === 'wallet' && renderWallet()}
+          {activeTab === 'payments' && renderPaymentProofs()}
+          {activeTab === 'withdrawals' && renderWithdrawals()}
           {activeTab === 'traffic' && renderLiveTraffic()}
           
+          {activeTab === 'tools' && renderTools()}
+          {activeTab === 'tool-orders' && renderToolOrders()}
+
           {activeTab === 'courses' && (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/50 px-6 py-4">
@@ -1754,7 +2670,198 @@ export default function AdminDashboard() {
         </div>
       </main>
 
-      {/* Add/Edit Course Modal */}
+      {/* Tool Delete Confirmation Modal */}
+      {toolToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
+            <div className="mb-6 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600">
+                <AlertTriangle className="h-8 w-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">Delete Tool?</h3>
+              <p className="mt-2 text-slate-500">Are you sure you want to delete "{toolToDelete.title}"? This action cannot be undone.</p>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setToolToDelete(null)}
+                className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleToolDelete}
+                disabled={isDeleting}
+                className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-bold text-white transition-all hover:bg-red-700 disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Tool'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Tool Modal */}
+      {(isAddToolModalOpen || editingTool) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl">
+            <div className="mb-6 flex items-center justify-between sticky top-0 bg-white z-10 pb-4 border-b border-slate-100">
+              <h2 className="text-xl font-bold text-slate-900">
+                {editingTool ? 'Edit Tool' : 'Add New Tool'}
+              </h2>
+              <button 
+                onClick={() => {
+                  setIsAddToolModalOpen(false);
+                  setEditingTool(null);
+                  setPreviewImage(null);
+                }}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={editingTool ? handleEditTool : handleAddTool} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Tool Title</label>
+                    <input 
+                      name="title" 
+                      required 
+                      defaultValue={editingTool?.title}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                      placeholder="e.g. Premium SEO Script"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-sm font-semibold text-slate-700">Category</label>
+                      <input 
+                        name="category" 
+                        required
+                        defaultValue={editingTool?.category}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                        placeholder="e.g. SEO"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-semibold text-slate-700">Rating (1-5)</label>
+                      <input 
+                        name="rating" 
+                        type="number" 
+                        step="0.1"
+                        min="1" 
+                        max="5" 
+                        defaultValue={editingTool?.rating || 5}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-sm font-semibold text-slate-700">Price</label>
+                      <input 
+                        name="price" 
+                        type="number" 
+                        required 
+                        defaultValue={editingTool?.price}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                        placeholder="19.99"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-semibold text-slate-700">Original Price</label>
+                      <input 
+                        name="originalPrice" 
+                        type="number" 
+                        defaultValue={editingTool?.originalPrice}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                        placeholder="89.99"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Image URL</label>
+                    <input 
+                      name="image" 
+                      defaultValue={editingTool?.image}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                      placeholder="https://images.unsplash.com/..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Description</label>
+                    <textarea 
+                      name="description" 
+                      rows={4}
+                      required
+                      defaultValue={editingTool?.description}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                      placeholder="Describe what this tool is for..."
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Features (One per line)</label>
+                    <textarea 
+                      name="features" 
+                      rows={4}
+                      defaultValue={editingTool?.features?.join('\n')}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none font-mono"
+                      placeholder="Feature 1&#10;Feature 2&#10;..."
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Download/Source Link</label>
+                    <input 
+                      name="sourceUrl" 
+                      defaultValue={editingTool?.sourceUrl}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                      placeholder="https://mega.nz/..."
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Tool Password (Optional)</label>
+                    <input 
+                      name="password" 
+                      defaultValue={editingTool?.password}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                      placeholder="e.g. 123456"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-6 border-t border-slate-100">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsAddToolModalOpen(false);
+                    setEditingTool(null);
+                  }}
+                  className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-700 hover:shadow-blue-600/40 active:scale-95"
+                >
+                  {editingTool ? 'Update Tool' : 'Add Tool'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {(isAddModalOpen || editingCourse) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl">

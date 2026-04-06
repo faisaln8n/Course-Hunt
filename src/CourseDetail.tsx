@@ -589,80 +589,55 @@ export default function CourseDetail() {
         </section>
 
         <section className="cta-section">
-          <div className="flex flex-col gap-6 items-center">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-              <div className="flex gap-2 sm:col-span-1">
-                <button 
-                  onClick={() => {
-                    if (!cartService.isInCart(course.id)) {
-                      cartService.addToCart(course.id);
-                      toast.success('Added to cart!');
-                    } else {
-                      setIsCartOpen(true);
-                    }
-                  }} 
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold transition-all shadow-md active:scale-95",
-                    cartService.isInCart(course.id)
-                      ? "bg-gray-100 text-gray-600 border border-gray-200"
-                      : "bg-[#FF6B35] text-black hover:shadow-lg hover:-translate-y-0.5"
-                  )}
-                >
-                  {cartService.isInCart(course.id) ? (
-                    <>
-                      <Check className="w-5 h-5" />
-                      In Cart
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingCart className="w-5 h-5" />
-                      Add to Cart
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => wishlistService.toggleWishlist(String(course.id))}
-                  className={cn(
-                    "px-4 py-4 rounded-xl border-2 transition-all duration-300 active:scale-95",
-                    wishlistItems.includes(String(course.id))
-                      ? "bg-red-50 border-red-200 text-red-500"
-                      : "bg-gray-50 border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-100"
-                  )}
-                >
-                  <Heart className={cn("w-6 h-6", wishlistItems.includes(String(course.id)) && "fill-current")} />
-                </button>
-              </div>
+          <div className="flex flex-col gap-6 items-center justify-center max-w-2xl mx-auto">
+            <div className="flex flex-col sm:flex-row gap-4 w-full justify-center items-center">
+              <button 
+                onClick={() => {
+                  if (!cartService.isInCart(course.id)) {
+                    cartService.addToCart(course.id);
+                    toast.success('Added to cart!');
+                  } else {
+                    setIsCartOpen(true);
+                  }
+                }} 
+                className={cn(
+                  "w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold transition-all shadow-md active:scale-95",
+                  cartService.isInCart(course.id)
+                    ? "bg-gray-100 text-gray-600 border border-gray-200"
+                    : "bg-[#FF6B35] text-black hover:shadow-lg hover:-translate-y-0.5"
+                )}
+              >
+                {cartService.isInCart(course.id) ? (
+                  <>
+                    <Check className="w-5 h-5" />
+                    In Cart
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart className="w-5 h-5" />
+                    Add to Cart
+                  </>
+                )}
+              </button>
               
-              {isPurchased ? (
-                <button 
-                  className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold bg-green-600 text-white cursor-default shadow-md"
+              {course.sourceUrl && (
+                <a 
+                  href={course.sourceUrl.startsWith('http') ? course.sourceUrl : `https://${course.sourceUrl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold bg-[#4D00FF] text-white hover:bg-[#3d00cc] transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 no-underline"
                 >
-                  <CheckCircle2 className="w-5 h-5" />
-                  Course Purchased
-                </button>
-              ) : (
-                <button 
-                  onClick={handleBuyNow} 
-                  disabled={isPurchasing}
-                  className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold bg-[#4D00FF] text-white hover:bg-[#3d00cc] transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 disabled:opacity-50"
-                >
-                  {isPurchasing ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Tag className="w-5 h-5" />
-                      Buy Now
-                    </>
-                  )}
-                </button>
+                  <ExternalLink className="w-5 h-5" />
+                  Course Source
+                </a>
               )}
             </div>
           </div>
 
-          <div className="cta-info">
-            <h3>How to Purchase</h3>
-            <div className="info-box">
-              <p>Use the <strong>Buy Now</strong> button to purchase instantly using your wallet balance.</p>
+          <div className="cta-info text-center">
+            <h3>Course Access</h3>
+            <div className="info-box inline-block">
+              <p>Add this course to your cart to purchase or visit the original source.</p>
             </div>
           </div>
         </section>

@@ -57,6 +57,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               createdAt: new Date().toISOString(),
               lastLogin: new Date().toISOString(),
               walletBalance: 0,
+              affiliateBalance: 0,
+              referralCode: firebaseUser.uid.substring(0, 8).toUpperCase(),
               purchasedCourses: []
             };
             await userService.createUserProfile(newProfile);

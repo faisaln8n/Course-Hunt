@@ -1,5 +1,5 @@
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 
 export interface UserProfile {
   uid: string;
@@ -14,6 +14,10 @@ export interface UserProfile {
   createdAt?: string;
   walletBalance?: number;
   purchasedCourses?: string[];
+  // Referral fields
+  referralCode: string;
+  referredBy?: string;
+  affiliateBalance?: number;
 }
 
 export const userService = {
@@ -50,6 +54,10 @@ export const userService = {
     const path = `users/${profile.uid}`;
     try {
       const docRef = doc(db, 'users', profile.uid);
+      
+      // Check for stored referral code
+      const referredBy = localStorage.getItem('referredBy');
+      
       await setDoc(docRef, {
         email: profile.email,
         displayName: profile.displayName || '',
@@ -59,8 +67,18 @@ export const userService = {
         bio: profile.bio || '',
         status: 'active',
         createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString()
+        lastLogin: new Date().toISOString(),
+        walletBalance: 0,
+        affiliateBalance: 0,
+        purchasedCourses: [],
+        referralCode: profile.uid.substring(0, 8), // Unique code based on UID
+        referredBy: referredBy || null
       });
+
+      // Clear referral after use
+      if (referredBy) {
+        localStorage.removeItem('referredBy');
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
@@ -104,5 +122,18 @@ export const userService = {
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
+  },
+
+  onReferredUsersSnapshot(referrerId: string, callback: (users: UserProfile[]) => void): () => void {
+    const q = query(
+      collection(db, 'users'),
+      where('referredBy', '==', referrerId)
+    );
+    return onSnapshot(q, (snapshot) => {
+      const users = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+      callback(users);
+    }, (error) => {
+      console.error("Error fetching referred users:", error);
+    });
   }
 };

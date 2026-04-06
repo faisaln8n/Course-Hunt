@@ -53,6 +53,32 @@ service cloud.firestore {
     // Fields:
     //   - email: string
     //   - role: string ('admin', 'user')
+    //   - referralCode: string
+    //   - affiliateBalance: number
+    //
+    // Collection: deposit_requests
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required)
+    //   - userEmail: string (required)
+    //   - amount: number (required)
+    //   - method: string (required, 'bKash' or 'Binance')
+    //   - transactionId: string (optional)
+    //   - binanceUid: string (optional)
+    //   - screenshotUrl: string (required)
+    //   - status: string (required, 'Pending', 'Paid', 'Rejected', 'Declined')
+    //   - timestamp: timestamp (required)
+    //
+    // Collection: withdrawals
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required)
+    //   - userEmail: string (required)
+    //   - amount: number (required)
+    //   - method: string (required, 'bKash' or 'Binance')
+    //   - details: string (required)
+    //   - status: string (required, 'Pending', 'Approved', 'Rejected', 'Processed')
+    //   - timestamp: timestamp (required)
     //
     // ===============================================================
 
@@ -137,13 +163,26 @@ service cloud.firestore {
              (!('lastLogin' in data) || (data.lastLogin is string && data.lastLogin.size() < 100)) &&
              (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() < 100)) &&
              (!('walletBalance' in data) || data.walletBalance is number) &&
+             (!('affiliateBalance' in data) || data.affiliateBalance is number) &&
+             (!('referralCode' in data) || (data.referralCode is string && data.referralCode.size() < 50)) &&
+             (!('referredBy' in data) || (data.referredBy is string || data.referredBy == null)) &&
              (!('purchasedCourses' in data) || data.purchasedCourses is list);
+    }
+
+    function isValidWithdrawalRequest(data) {
+      return data.userId is string &&
+             data.userEmail is string && isValidEmail(data.userEmail) &&
+             data.amount is number && data.amount > 0 &&
+             data.method in ['bKash', 'Binance'] &&
+             data.details is string && data.details.size() < 200 &&
+             data.status in ['Pending', 'Approved', 'Rejected', 'Processed'] &&
+             data.timestamp is timestamp;
     }
 
     function isValidTransaction(data) {
       return data.userId is string &&
              data.amount is number &&
-             data.type in ['deposit', 'purchase'] &&
+             data.type in ['deposit', 'purchase', 'commission', 'withdrawal', 'refund'] &&
              (!('description' in data) || (data.description is string && data.description.size() < 500)) &&
              data.timestamp is timestamp;
     }
@@ -169,6 +208,31 @@ service cloud.firestore {
              data.lastSeen is timestamp &&
              data.isGuest is bool &&
              (!('email' in data) || data.email is string);
+    }
+
+    function isValidDepositRequest(data) {
+      return data.userId is string &&
+             data.userEmail is string && isValidEmail(data.userEmail) &&
+             data.amount is number && data.amount > 0 &&
+             data.method in ['bKash', 'Binance'] &&
+             (!('transactionId' in data) || (data.transactionId is string && data.transactionId.size() < 100)) &&
+             (!('binanceUid' in data) || (data.binanceUid is string && data.binanceUid.size() < 100)) &&
+             data.screenshotUrl is string && data.screenshotUrl.size() < 1000000 &&
+             data.status in ['Pending', 'Paid', 'Rejected', 'Declined'] &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidTool(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.price is number && data.price >= 0 &&
+             data.image is string && data.image.size() > 0 && data.image.size() < 1000000 &&
+             data.category is string && data.category.size() > 0 && data.category.size() < 100 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 10000 &&
+             (!('originalPrice' in data) || data.originalPrice is number) &&
+             (!('rating' in data) || data.rating is number) &&
+             (!('reviews' in data) || data.reviews is number) &&
+             (!('features' in data) || (data.features is list && data.features.size() < 50)) &&
+             (!('sourceUrl' in data) || (data.sourceUrl is string && data.sourceUrl.size() < 1000));
     }
 
     // ===============================================================
@@ -231,6 +295,27 @@ service cloud.firestore {
       allow write: if ((isAuthenticated() && request.auth.uid == userId) || 
                       (userId.matches("^guest-.*"))) &&
                       isValidPresence(request.resource.data, userId);
+    }
+
+    match /deposit_requests/{requestId} {
+      allow read: if isAdmin() || (isAuthenticated() && isOwner(resource.data.userId));
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidDepositRequest(request.resource.data) && request.resource.data.status == 'Pending';
+      allow update: if isAdmin() && isValidDepositRequest(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /withdrawals/{withdrawalId} {
+      allow read: if isAdmin() || (isAuthenticated() && isOwner(resource.data.userId));
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidWithdrawalRequest(request.resource.data) && request.resource.data.status == 'Pending';
+      allow update: if isAdmin() && isValidWithdrawalRequest(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /tools/{toolId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidTool(request.resource.data);
+      allow update: if isAdmin() && isValidTool(request.resource.data);
+      allow delete: if isAdmin();
     }
   }
 }

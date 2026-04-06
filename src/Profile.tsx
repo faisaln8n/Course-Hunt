@@ -4,18 +4,461 @@ import { useUserAuth } from './components/AuthContext';
 import Logo from './components/ui/Logo';
 import { userService } from './services/userService';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Shield, Edit2, Save, X, Camera, LogOut, Heart, ShoppingCart, Trash2, Star, Target, CreditCard, History, BookOpen, CheckCircle, Wallet } from 'lucide-react';
+import { ArrowLeft, User, Mail, Shield, Edit2, Save, X, Camera, LogOut, Heart, ShoppingCart, Trash2, Star, Target, CreditCard, History, BookOpen, CheckCircle, Wallet, Activity, ChevronRight, MessageCircle, Users, Share2, DollarSign, ExternalLink, Copy, Tag, Wrench, Eye, Clock } from 'lucide-react';
 import { wishlistService } from './services/wishlistService';
 import { courseService } from './services/courseService';
 import { Course } from './data/courses';
 import { cartService } from './services/cartService';
-import { walletService, Transaction as WalletTransaction } from './services/walletService';
+import { walletService, Transaction as WalletTransaction, DepositRequest, WithdrawalRequest, ToolOrder } from './services/walletService';
+import { toolService } from './services/toolService';
+import { Tool } from './data/tools';
+import { UserProfile } from './services/userService';
 import { toast } from 'sonner';
-import { AnimatePresence } from 'framer-motion';
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
   return classes.filter(Boolean).join(" ");
 }
+import { AnimatePresence } from 'framer-motion';
+
+const WithdrawalModal = ({ isOpen, onClose, userId, userEmail, balance }: { isOpen: boolean, onClose: () => void, userId: string, userEmail: string, balance: number }) => {
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState<'bKash' | 'Binance'>('bKash');
+  const [details, setDetails] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!amount || Number(amount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (Number(amount) > balance) {
+      toast.error('Insufficient affiliate balance');
+      return;
+    }
+    if (!details) {
+      toast.error(`Please enter your ${method === 'bKash' ? 'bKash number' : 'Binance UID'}`);
+      return;
+    }
+
+    setIsSubmitting(true);
+    const result = await walletService.submitWithdrawalRequest({
+      userId,
+      userEmail,
+      amount: Number(amount),
+      method,
+      details
+    });
+
+    if (result.success) {
+      toast.success('Withdrawal request submitted successfully');
+      onClose();
+    } else {
+      toast.error(result.error || 'Failed to submit withdrawal request');
+    }
+    setIsSubmitting(false);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden"
+      >
+        <div className="p-8">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Withdraw Funds</h3>
+            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+              <X className="w-6 h-6 text-slate-400" />
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Available Affiliate Balance</p>
+              <p className="text-2xl font-black text-[#FF6B35]">${balance.toLocaleString()}</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Withdrawal Method</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={() => setMethod('bKash')}
+                  className={cn(
+                    "py-3 rounded-2xl font-bold border-2 transition-all",
+                    method === 'bKash' ? "border-[#FF6B35] bg-orange-50 text-black" : "border-slate-100 bg-slate-50 text-slate-500"
+                  )}
+                >
+                  bKash
+                </button>
+                <button 
+                  onClick={() => setMethod('Binance')}
+                  className={cn(
+                    "py-3 rounded-2xl font-bold border-2 transition-all",
+                    method === 'Binance' ? "border-[#FF6B35] bg-orange-50 text-black" : "border-slate-100 bg-slate-50 text-slate-500"
+                  )}
+                >
+                  Binance
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Amount ($)</label>
+              <input 
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-[#FF6B35] transition-all font-bold"
+                placeholder="Enter amount"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                {method === 'bKash' ? 'bKash Number' : 'Binance UID'}
+              </label>
+              <input 
+                type="text"
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-[#FF6B35] transition-all font-bold"
+                placeholder={method === 'bKash' ? 'Enter bKash number' : 'Enter Binance UID'}
+              />
+            </div>
+
+            <button 
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="w-full py-4 bg-[#FF6B35] text-black rounded-2xl font-black uppercase tracking-wider text-xs hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 disabled:opacity-50"
+            >
+              {isSubmitting ? 'Processing...' : 'Submit Withdrawal Request'}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }> = ({ isOpen, onClose, user }) => {
+  const [step, setStep] = useState<'method' | 'details'>('method');
+  const [method, setMethod] = useState<'bKash' | 'Binance' | null>(null);
+  const [amount, setAmount] = useState('');
+  const [transactionId, setTransactionId] = useState('');
+  const [binanceUid, setBinanceUid] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [screenshot, setScreenshot] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard!');
+  };
+
+  const handleScreenshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 800 * 1024) {
+        toast.error('Screenshot too large. Please use an image under 800KB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => setScreenshot(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!amount || !screenshot || (method === 'bKash' && !transactionId) || (method === 'Binance' && !binanceUid)) {
+      toast.error('Please fill all required fields and upload a screenshot');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await walletService.submitDepositRequest({
+        userId: user.uid,
+        userEmail: user.email,
+        amount: Number(amount),
+        method: method!,
+        transactionId: method === 'bKash' ? transactionId : undefined,
+        binanceUid: method === 'Binance' ? binanceUid : undefined,
+        couponCode: couponCode || undefined,
+        screenshotUrl: screenshot
+      });
+
+      if (result.success) {
+        toast.success('Deposit request submitted! Admin will review it shortly.');
+        onClose();
+        // Reset state
+        setStep('method');
+        setMethod(null);
+        setAmount('');
+        setTransactionId('');
+        setBinanceUid('');
+        setCouponCode('');
+        setScreenshot(null);
+      } else {
+        toast.error(result.error || 'Failed to submit request');
+      }
+    } catch (error) {
+      toast.error('An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col md:flex-row min-h-[600px]"
+      >
+        {/* Left Side: Motivational Text */}
+        <div className="md:w-5/12 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-10 text-white flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF6B35]/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full -ml-32 -mb-32 blur-3xl"></div>
+          
+          <div className="relative z-10">
+            <div className="mb-10">
+              <div className="flex items-center gap-2 group cursor-default">
+                <div className="w-10 h-10 bg-[#FF6B35] rounded-xl flex items-center justify-center shadow-lg shadow-[#FF6B35]/20 group-hover:rotate-12 transition-transform duration-500">
+                  <span className="text-white font-black text-xl">C</span>
+                </div>
+                <span className="text-2xl font-black tracking-tighter text-white uppercase">Course<span className="text-[#FF6B35]">Hunt</span></span>
+              </div>
+            </div>
+            <h3 className="text-4xl font-black mb-8 leading-tight uppercase tracking-tight">
+              Unlock Your <span className="text-[#FF6B35]">Potential</span> Today
+            </h3>
+            <div className="space-y-6">
+              <div className="flex gap-4">
+                <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                </div>
+                <p className="text-slate-400 text-sm font-medium">
+                  Deposit with <span className="text-white font-bold italic">Scratch Person</span> to get instant access to premium courses.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <CheckCircle className="w-4 h-4 text-blue-400" />
+                </div>
+                <p className="text-slate-400 text-sm font-medium">
+                  Join thousands of learners who are already mastering new skills.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-6 h-6 rounded-full bg-[#FF6B35]/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <CheckCircle className="w-4 h-4 text-[#FF6B35]" />
+                </div>
+                <p className="text-slate-400 text-sm font-medium">
+                  Secure transactions with bKash and Binance.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative z-10 mt-12 p-6 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-sm">
+            <p className="text-xs font-black text-[#FF6B35] uppercase tracking-widest mb-2">Pro Tip</p>
+            <p className="text-slate-400 text-xs font-medium leading-relaxed">
+              Use a deposit coupon to get an extra bonus on your wallet balance!
+            </p>
+          </div>
+        </div>
+
+        {/* Right Side: Deposit Form */}
+        <div className="md:w-7/12 p-10 bg-white overflow-y-auto max-h-[90vh]">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                {step === 'method' ? 'Select Method' : `Deposit via ${method}`}
+              </h3>
+              <p className="text-slate-400 text-xs font-bold mt-1">Step {step === 'method' ? '1' : '2'} of 2</p>
+            </div>
+            <button onClick={onClose} className="p-3 hover:bg-slate-100 rounded-full transition-colors">
+              <X className="w-6 h-6 text-slate-400" />
+            </button>
+          </div>
+
+          {step === 'method' ? (
+            <div className="space-y-4">
+              <button 
+                onClick={() => { setMethod('bKash'); setStep('details'); }}
+                className="w-full flex items-center justify-between p-6 bg-pink-50 border-2 border-pink-100 rounded-3xl hover:border-pink-300 transition-all group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+                    <span className="text-pink-600 font-black text-2xl">b</span>
+                  </div>
+                  <div className="text-left">
+                    <p className="font-black text-slate-900 text-lg">bKash</p>
+                    <p className="text-xs text-pink-600 font-bold">Fast & Secure (Personal)</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-6 h-6 text-pink-300 group-hover:translate-x-1 transition-transform" />
+              </button>
+
+              <button 
+                onClick={() => { setMethod('Binance'); setStep('details'); }}
+                className="w-full flex items-center justify-between p-6 bg-yellow-50 border-2 border-yellow-100 rounded-3xl hover:border-yellow-300 transition-all group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+                    <span className="text-yellow-600 font-black text-2xl">B</span>
+                  </div>
+                  <div className="text-left">
+                    <p className="font-black text-slate-900 text-lg">Binance</p>
+                    <p className="text-xs text-yellow-600 font-bold">Global Crypto (UID)</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-6 h-6 text-yellow-300 group-hover:translate-x-1 transition-transform" />
+              </button>
+
+              <div className="w-full flex items-center justify-between p-6 bg-gradient-to-br from-sky-500 to-blue-700 border-2 border-blue-400 rounded-3xl shadow-lg relative overflow-hidden group opacity-90">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div className="flex items-center gap-4 relative z-10">
+                  <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-inner border border-white/20">
+                    <CreditCard className="w-8 h-8 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-black text-white text-lg tracking-tight">Stripe Card</p>
+                    <p className="text-xs text-blue-100 font-bold uppercase tracking-widest">Coming Soon</p>
+                  </div>
+                </div>
+                <div className="relative z-10">
+                  <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] rotate-90 inline-block">STRIPE</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="p-6 bg-slate-900 rounded-3xl text-white relative overflow-hidden border border-white/5 shadow-2xl">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF6B35]/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-3 ml-1">Official Payment Detail</p>
+                <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/10 backdrop-blur-md group">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-black text-[#FF6B35] uppercase tracking-widest mb-1">
+                      {method === 'bKash' ? 'bKash Number' : 'Binance ID'}
+                    </span>
+                    <p className="text-xl font-black tracking-widest font-mono text-white group-hover:text-[#FF6B35] transition-colors">
+                      {method === 'bKash' 
+                        ? '01314493061' 
+                        : '38018802'}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => copyToClipboard(method === 'bKash' ? '01314493061' : '38018802')}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#FF6B35] hover:bg-[#E85D04] text-black rounded-xl transition-all text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy
+                  </button>
+                </div>
+                <div className="mt-4 flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 w-fit">
+                  <Shield className="w-3 h-3 text-blue-400" />
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                    {method === 'bKash' ? 'Send money to this personal number' : 'Pay to this Binance ID'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Amount ($)</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      type="number"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="w-full pl-11 pr-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-[#FF6B35] transition-all font-bold text-sm"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Coupon Code</label>
+                  <div className="relative">
+                    <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      type="text"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      className="w-full pl-11 pr-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-[#FF6B35] transition-all font-bold text-sm"
+                      placeholder="EXTRA10"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                  {method === 'bKash' ? 'Transaction ID' : 'Binance UID'}
+                </label>
+                <input 
+                  type="text"
+                  value={method === 'bKash' ? transactionId : binanceUid}
+                  onChange={(e) => method === 'bKash' ? setTransactionId(e.target.value) : setBinanceUid(e.target.value)}
+                  className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-[#FF6B35] transition-all font-bold text-sm"
+                  placeholder={method === 'bKash' ? "Enter Tx ID" : "Enter UID"}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Payment Screenshot</label>
+                <div className="relative group">
+                  <div className={cn(
+                    "w-full h-40 rounded-3xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all",
+                    screenshot ? "border-[#FF6B35] bg-orange-50" : "border-slate-200 bg-slate-50 hover:border-[#FF6B35]"
+                  )}>
+                    {screenshot ? (
+                      <img src={screenshot} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center">
+                        <Camera className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Click to upload</p>
+                      </div>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={handleScreenshotUpload}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button 
+                  onClick={() => setStep('method')}
+                  className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all"
+                >
+                  Back
+                </button>
+                <button 
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="flex-[2] py-4 bg-[#FF6B35] text-black rounded-2xl font-black uppercase tracking-widest text-[10px] hover:shadow-2xl hover:-translate-y-1 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Submitting...' : 'Submit Proof'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
 const Profile: React.FC = () => {
   const { user, profile, loading, refreshProfile, logout } = useUserAuth();
@@ -32,8 +475,25 @@ const Profile: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [cartCount, setCartCount] = useState(cartService.getCartCount());
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [depositRequests, setDepositRequests] = useState<DepositRequest[]>([]);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
+  const [referredUsers, setReferredUsers] = useState<UserProfile[]>([]);
   const [purchasedCourses, setPurchasedCourses] = useState<Course[]>([]);
-  const [activeTab, setActiveTab] = useState<'profile' | 'wallet' | 'courses' | 'wishlist'>('profile');
+  const [toolOrders, setToolOrders] = useState<ToolOrder[]>([]);
+  const [allTools, setAllTools] = useState<Tool[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<ToolOrder | null>(null);
+  const [activeTab, setActiveTab] = useState<'profile' | 'wallet' | 'courses' | 'tools' | 'wishlist' | 'support' | 'affiliate'>('profile');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+
+  useEffect(() => {
+    const fetchTools = async () => {
+      const tools = await toolService.getTools();
+      setAllTools(tools);
+    };
+    fetchTools();
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -59,12 +519,36 @@ const Profile: React.FC = () => {
     };
 
     let transactionsUnsubscribe: (() => void) | null = null;
+    let depositRequestsUnsubscribe: (() => void) | null = null;
+    let referredUsersUnsubscribe: (() => void) | null = null;
+    let withdrawalsUnsubscribe: (() => void) | null = null;
+    let toolOrdersUnsubscribe: (() => void) | null = null;
 
     const loadWalletData = () => {
       if (user) {
         if (transactionsUnsubscribe) transactionsUnsubscribe();
         transactionsUnsubscribe = walletService.onTransactionsSnapshot(user.uid, (txs) => {
           setTransactions(txs);
+        });
+
+        if (depositRequestsUnsubscribe) depositRequestsUnsubscribe();
+        depositRequestsUnsubscribe = walletService.onUserDepositRequestsSnapshot(user.uid, (reqs) => {
+          setDepositRequests(reqs);
+        });
+
+        if (referredUsersUnsubscribe) referredUsersUnsubscribe();
+        referredUsersUnsubscribe = userService.onReferredUsersSnapshot(user.uid, (users) => {
+          setReferredUsers(users);
+        });
+
+        if (withdrawalsUnsubscribe) withdrawalsUnsubscribe();
+        withdrawalsUnsubscribe = walletService.onWithdrawalsSnapshot(user.uid, (reqs) => {
+          setWithdrawalRequests(reqs);
+        });
+
+        if (toolOrdersUnsubscribe) toolOrdersUnsubscribe();
+        toolOrdersUnsubscribe = walletService.onUserToolOrdersSnapshot(user.uid, (orders) => {
+          setToolOrders(orders);
         });
       }
     };
@@ -95,6 +579,10 @@ const Profile: React.FC = () => {
       window.removeEventListener('wishlist-updated', handleWishlistUpdate);
       window.removeEventListener('cart-updated', handleCartUpdate);
       if (transactionsUnsubscribe) transactionsUnsubscribe();
+      if (depositRequestsUnsubscribe) depositRequestsUnsubscribe();
+      if (referredUsersUnsubscribe) referredUsersUnsubscribe();
+      if (withdrawalsUnsubscribe) withdrawalsUnsubscribe();
+      if (toolOrdersUnsubscribe) toolOrdersUnsubscribe();
     };
   }, [profile, user]);
 
@@ -205,6 +693,16 @@ const Profile: React.FC = () => {
                 My Courses
               </button>
               <button 
+                onClick={() => setActiveTab('tools')}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all",
+                  activeTab === 'tools' ? "bg-slate-900 text-white shadow-lg" : "text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <Wrench className="w-5 h-5" />
+                My Tools
+              </button>
+              <button 
                 onClick={() => setActiveTab('wallet')}
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all",
@@ -223,6 +721,26 @@ const Profile: React.FC = () => {
               >
                 <Heart className="w-5 h-5" />
                 Wishlist
+              </button>
+              <button 
+                onClick={() => setActiveTab('affiliate')}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all",
+                  activeTab === 'affiliate' ? "bg-slate-900 text-white shadow-lg" : "text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <Users className="w-5 h-5" />
+                Affiliate
+              </button>
+              <button 
+                onClick={() => setActiveTab('support')}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all",
+                  activeTab === 'support' ? "bg-slate-900 text-white shadow-lg" : "text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <MessageCircle className="w-5 h-5" />
+                Support
               </button>
               <div className="pt-4 mt-4 border-t border-slate-100">
                 <button 
@@ -246,6 +764,10 @@ const Profile: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-300">Courses Owned</span>
                   <span className="font-black">{purchasedCourses.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-300">Tools Owned</span>
+                  <span className="font-black">{toolOrders.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-300">Wishlist Items</span>
@@ -484,6 +1006,93 @@ const Profile: React.FC = () => {
                 </motion.div>
               )}
 
+              {activeTab === 'tools' && (
+                <motion.div 
+                  key="tools"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">My Tools</h2>
+                    <span className="px-4 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold">{toolOrders.length} Tools</span>
+                  </div>
+
+                  {toolOrders.length === 0 ? (
+                    <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-16 text-center shadow-sm">
+                      <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Wrench className="w-10 h-10 text-slate-300" />
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-900 mb-2">No tools yet</h3>
+                      <p className="text-slate-500 mb-8 max-w-xs mx-auto">Enhance your workflow with our premium tools and resources!</p>
+                      <Link 
+                        to="/tools" 
+                        className="inline-flex items-center gap-2 px-8 py-4 bg-[#FF6B35] text-black font-black rounded-2xl hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 uppercase tracking-wider text-sm"
+                      >
+                        Explore Tools
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {toolOrders.map((order) => {
+                        const tool = allTools.find(t => t.id === order.toolId);
+                        if (!tool) return null;
+                        
+                        return (
+                          <motion.div
+                            key={order.id}
+                            className="bg-white border-2 border-slate-100 rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 group"
+                          >
+                            <div className="relative h-40 overflow-hidden">
+                              <img src={tool.image || ''} alt={tool.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                              <div className={cn(
+                                "absolute top-4 right-4 px-3 py-1 text-white text-[10px] font-black uppercase rounded-full shadow-lg",
+                                order.status === 'Purchased' ? "bg-green-500" : 
+                                order.status === 'Rejected' ? "bg-red-500" : 
+                                "bg-yellow-500"
+                              )}>
+                                {order.status}
+                              </div>
+                            </div>
+                            <div className="p-6">
+                              <h3 className="font-bold text-slate-900 mb-4 line-clamp-2 leading-tight">{tool.title}</h3>
+                              <div className="flex flex-col gap-3">
+                                <button 
+                                  onClick={() => setSelectedOrder(order)}
+                                  disabled={order.status !== 'Purchased'}
+                                  className={cn(
+                                    "w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all",
+                                    order.status === 'Purchased' ? "bg-[#FF6B35] text-black hover:shadow-lg" : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                  )}
+                                >
+                                  {order.status === 'Purchased' ? (
+                                    <>
+                                      <Eye className="w-4 h-4" />
+                                      Show Info
+                                    </>
+                                  ) : order.status === 'Rejected' ? (
+                                    <>
+                                      <X className="w-4 h-4" />
+                                      Order Rejected
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Clock className="w-4 h-4" />
+                                      Pending Review
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
               {activeTab === 'wallet' && (
                 <motion.div 
                   key="wallet"
@@ -492,20 +1101,129 @@ const Profile: React.FC = () => {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-6"
                 >
-                  {/* Balance Card */}
-                  <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF6B35]/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-                    <div className="relative z-10">
-                      <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-2">Available Balance</p>
-                      <h2 className="text-5xl font-black mb-8">${(profile.walletBalance || 0).toLocaleString()}</h2>
-                      <div className="flex flex-wrap gap-4">
-                        <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-2xl border border-white/10">
-                          <CheckCircle className="w-4 h-4 text-green-400" />
-                          <span className="text-xs font-bold text-slate-300">Secure Wallet</span>
+                  {/* Wallet Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Balance Card */}
+                    <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden group border border-white/5">
+                      <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full -mr-40 -mt-40 blur-[100px] group-hover:bg-blue-500/20 transition-all duration-700"></div>
+                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#FF6B35]/5 rounded-full -ml-32 -mb-32 blur-[80px]"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-10">
+                          <div className="flex items-center gap-4">
+                            <div className="p-4 bg-white/10 rounded-3xl backdrop-blur-xl border border-white/10 shadow-inner">
+                              <Wallet className="w-8 h-8 text-[#FF6B35]" />
+                            </div>
+                            <div>
+                              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Available Funds</p>
+                              <h3 className="text-xl font-black tracking-tight">Main Wallet</h3>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 rounded-full border border-green-500/20">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
+                            <span className="text-[9px] font-black text-green-400 uppercase tracking-widest">Active</span>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <p className="text-slate-500 text-xs font-bold ml-1">Current Balance</p>
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-5xl font-black tracking-tighter">${(profile.walletBalance || 0).toLocaleString()}</span>
+                            <span className="text-slate-500 font-bold text-sm uppercase tracking-widest">USD</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-10 flex items-center gap-6">
+                          <div className="flex -space-x-2">
+                            {[1, 2, 3].map(i => (
+                              <div key={i} className="w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center overflow-hidden">
+                                <img src={`https://i.pravatar.cc/100?u=${i + 10}`} alt="User" className="w-full h-full object-cover opacity-50" />
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Trusted by 10k+ Learners</p>
                         </div>
                       </div>
                     </div>
+
+                    {/* Deposit Card */}
+                    <div className="bg-gradient-to-br from-[#FF6B35] via-[#E85D04] to-[#FF6B35] rounded-[2.5rem] p-10 text-black shadow-2xl relative overflow-hidden group border border-white/20">
+                      <div className="absolute top-0 right-0 w-80 h-80 bg-white/30 rounded-full -mr-40 -mt-40 blur-[100px] group-hover:bg-white/40 transition-all duration-700"></div>
+                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/5 rounded-full -ml-32 -mb-32 blur-[80px]"></div>
+                      
+                      <div className="relative z-10 h-full flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-10">
+                            <div className="flex items-center gap-4">
+                              <div className="p-4 bg-black/10 rounded-3xl backdrop-blur-xl border border-black/5 shadow-inner">
+                                <CreditCard className="w-8 h-8 text-black" />
+                              </div>
+                              <div>
+                                <p className="text-black/60 text-[10px] font-black uppercase tracking-[0.2em]">Quick Recharge</p>
+                                <h3 className="text-xl font-black tracking-tight">Add Balance</h3>
+                              </div>
+                            </div>
+                            <div className="bg-black/10 px-3 py-1 rounded-full border border-black/5">
+                              <span className="text-[9px] font-black text-black uppercase tracking-widest">Instant</span>
+                            </div>
+                          </div>
+                          
+                          <h2 className="text-3xl font-black mb-2 uppercase tracking-tight leading-none">Boost Your <br />Learning Power</h2>
+                          <p className="text-black/60 text-sm font-bold max-w-[200px]">Top up your wallet instantly using bKash or Binance UID.</p>
+                        </div>
+
+                        <button 
+                          onClick={() => setIsDepositModalOpen(true)}
+                          className="mt-10 w-full py-5 bg-black text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-[10px] hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:-translate-y-1.5 transition-all active:scale-95 flex items-center justify-center gap-3 group/btn"
+                        >
+                          <DollarSign className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                          Deposit Now
+                          <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Deposit Requests */}
+                  {depositRequests.length > 0 && (
+                    <div className="bg-white rounded-3xl shadow-xl p-8">
+                      <div className="flex items-center gap-3 mb-8">
+                        <Activity className="w-6 h-6 text-slate-400" />
+                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Deposit Requests</h3>
+                      </div>
+                      <div className="space-y-4">
+                        {depositRequests.map((req) => (
+                          <div key={req.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div className="flex items-center gap-4">
+                              <div className={cn(
+                                "w-12 h-12 rounded-xl flex items-center justify-center shadow-sm",
+                                req.method === 'bKash' ? "bg-pink-50 text-pink-500" : "bg-yellow-50 text-yellow-600"
+                              )}>
+                                <span className="font-black text-xl">{req.method[0]}</span>
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-900">Deposit via {req.method}</p>
+                                <p className="text-xs text-slate-400 font-medium">
+                                  {req.timestamp?.toDate ? req.timestamp.toDate().toLocaleString() : 'Just now'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-lg font-black text-slate-900">${req.amount.toLocaleString()}</p>
+                              <span className={cn(
+                                "text-[10px] font-black uppercase px-2 py-0.5 rounded-full",
+                                req.status === 'Pending' ? "bg-blue-100 text-blue-600" :
+                                req.status === 'Paid' ? "bg-green-100 text-green-600" :
+                                "bg-red-100 text-red-600"
+                              )}>
+                                {req.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Transaction History */}
                   <div className="bg-white rounded-3xl shadow-xl p-8">
@@ -624,10 +1342,310 @@ const Profile: React.FC = () => {
                   )}
                 </motion.div>
               )}
+
+              {activeTab === 'affiliate' && (
+                <motion.div 
+                  key="affiliate"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-6"
+                >
+                  <div className="bg-white rounded-3xl shadow-xl p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+                      <div>
+                        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Affiliate Program</h2>
+                        <p className="text-slate-500 text-sm font-medium">Earn 30% commission on your referrals' first purchase.</p>
+                      </div>
+                      <button 
+                        onClick={() => setIsWithdrawModalOpen(true)}
+                        className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        Withdraw Funds
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                      <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Referrals</span>
+                        </div>
+                        <p className="text-3xl font-black text-slate-900">{referredUsers.length}</p>
+                      </div>
+                      <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="p-2 bg-orange-100 text-[#FF6B35] rounded-xl">
+                            <DollarSign className="w-5 h-5" />
+                          </div>
+                          <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Affiliate Balance</span>
+                        </div>
+                        <p className="text-3xl font-black text-[#FF6B35]">${(profile.affiliateBalance || 0).toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-6 bg-slate-900 rounded-3xl text-white mb-8">
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Your Referral Link</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          readOnly 
+                          value={`${window.location.origin}?ref=${profile.uid}`}
+                          className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none"
+                        />
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}?ref=${profile.uid}`);
+                            toast.success('Referral link copied!');
+                          }}
+                          className="p-3 bg-white text-slate-900 rounded-xl hover:bg-slate-100 transition-colors"
+                        >
+                          <Copy className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
+                          <Users className="w-5 h-5 text-blue-500" />
+                          Referred Users
+                        </h3>
+                        <div className="bg-slate-50 rounded-3xl border border-slate-100 overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                              <thead>
+                                <tr className="border-b border-slate-200">
+                                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">User</th>
+                                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Joined</th>
+                                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {referredUsers.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={3} className="px-6 py-8 text-center text-slate-400 font-bold">No referrals yet</td>
+                                  </tr>
+                                ) : (
+                                  referredUsers.map((u) => (
+                                    <tr key={u.uid} className="hover:bg-white transition-colors">
+                                      <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold overflow-hidden">
+                                            {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : u.email[0].toUpperCase()}
+                                          </div>
+                                          <span className="text-sm font-bold text-slate-900">{u.email}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-6 py-4 text-sm text-slate-500 font-medium">
+                                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
+                                      </td>
+                                      <td className="px-6 py-4">
+                                        <span className={cn(
+                                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                                          (u.purchasedCourses?.length || 0) > 0 ? "bg-green-100 text-green-600" : "bg-slate-100 text-slate-500"
+                                        )}>
+                                          {(u.purchasedCourses?.length || 0) > 0 ? 'Commission Earned' : 'Pending Purchase'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
+                          <History className="w-5 h-5 text-orange-500" />
+                          Withdrawal History
+                        </h3>
+                        <div className="bg-slate-50 rounded-3xl border border-slate-100 overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                              <thead>
+                                <tr className="border-b border-slate-200">
+                                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Method</th>
+                                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {withdrawalRequests.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={4} className="px-6 py-8 text-center text-slate-400 font-bold">No withdrawal requests yet</td>
+                                  </tr>
+                                ) : (
+                                  withdrawalRequests.map((req) => (
+                                    <tr key={req.id} className="hover:bg-white transition-colors">
+                                      <td className="px-6 py-4 text-sm text-slate-500 font-medium">
+                                        {req.timestamp?.toDate ? req.timestamp.toDate().toLocaleDateString() : 'Pending...'}
+                                      </td>
+                                      <td className="px-6 py-4 text-sm font-black text-slate-900">${req.amount.toLocaleString()}</td>
+                                      <td className="px-6 py-4 text-sm text-slate-500 font-bold">{req.method}</td>
+                                      <td className="px-6 py-4">
+                                        <span className={cn(
+                                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                                          req.status === 'Processed' ? "bg-green-100 text-green-600" :
+                                          req.status === 'Pending' ? "bg-orange-100 text-orange-600" :
+                                          req.status === 'Approved' ? "bg-blue-100 text-blue-600" :
+                                          "bg-red-100 text-red-600"
+                                        )}>
+                                          {req.status}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'support' && (
+                <motion.div 
+                  key="support"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-6"
+                >
+                  <div className="bg-white rounded-3xl shadow-xl p-8">
+                    <div className="flex items-center gap-4 mb-8">
+                      <div className="p-4 bg-green-50 rounded-2xl text-green-600">
+                        <MessageCircle className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Customer Support</h2>
+                        <p className="text-slate-500 text-sm font-medium">We're here to help you with any issues or questions.</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Describe your problem</label>
+                        <textarea 
+                          value={supportMessage}
+                          onChange={(e) => setSupportMessage(e.target.value)}
+                          className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-green-500 transition-all font-medium min-h-[200px] resize-none"
+                          placeholder="How can we help you today?"
+                        />
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          if (!supportMessage.trim()) {
+                            toast.error('Please describe your problem first.');
+                            return;
+                          }
+                          const encodedMessage = encodeURIComponent(`Support Request\n\nEmail: ${user?.email}\n\nProblem:\n${supportMessage}`);
+                          window.open(`https://wa.me/8801314493061?text=${encodedMessage}`, '_blank');
+                        }}
+                        className="w-full py-4 bg-[#25D366] text-white rounded-2xl font-black uppercase tracking-widest hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-3"
+                      >
+                        <MessageCircle className="w-6 h-6" />
+                        Send via WhatsApp
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         </div>
       </div>
+      <AnimatePresence>
+        {selectedOrder && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setSelectedOrder(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h2 className="text-2xl font-black flex items-center gap-3 text-slate-900 uppercase tracking-tight">
+                  <Wrench className="w-7 h-7 text-[#FF6B35]" />
+                  Tool Info
+                </h2>
+                <button 
+                  onClick={() => setSelectedOrder(null)}
+                  className="p-3 hover:bg-slate-200 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6 text-slate-400" />
+                </button>
+              </div>
+              
+              <div className="p-8 space-y-6">
+                <div>
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Tool Name</h4>
+                  <p className="text-lg font-bold text-slate-900">{selectedOrder.toolTitle}</p>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Account Info / Credentials</h4>
+                  <div className="p-6 bg-slate-900 rounded-3xl text-white relative group">
+                    <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
+                      {selectedOrder.accountInfo || 'No info provided yet.'}
+                    </pre>
+                    {selectedOrder.accountInfo && (
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedOrder.accountInfo || '');
+                          toast.success('Info copied to clipboard!');
+                        }}
+                        className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-3">
+                  <Shield className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                    Please keep this information secure. Do not share your account credentials with anyone.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-8 bg-slate-50/50 border-t border-slate-100">
+                <button 
+                  onClick={() => setSelectedOrder(null)}
+                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#FF6B35] transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <DepositModal 
+        isOpen={isDepositModalOpen} 
+        onClose={() => setIsDepositModalOpen(false)} 
+        user={user}
+      />
     </div>
   );
 };

@@ -28,12 +28,20 @@ export interface Coupon {
   expiryDate?: string; // ISO string for the expiration date/time
 }
 
+export interface DepositCoupon {
+  code: string;
+  bonusPercentage: number;
+  isActive: boolean;
+  expiryDate?: string;
+}
+
 export interface AppSettings {
   announcement: string;
   announcementLink?: string;
   announcementCountdown?: string;
   categories: string[];
   coupons: Coupon[];
+  depositCoupons: DepositCoupon[];
 }
 
 export const settingsService = {
@@ -43,7 +51,8 @@ export const settingsService = {
       announcementLink: '',
       announcementCountdown: '',
       categories: ['Development', 'Design', 'Marketing', 'Business'],
-      coupons: []
+      coupons: [],
+      depositCoupons: []
     };
   },
 
@@ -58,7 +67,8 @@ export const settingsService = {
           announcementLink: data.announcementLink || '',
           announcementCountdown: data.announcementCountdown || '',
           categories: data.categories || this.getDefaultSettings().categories,
-          coupons: data.coupons || []
+          coupons: data.coupons || [],
+          depositCoupons: data.depositCoupons || []
         };
       }
       return this.getDefaultSettings();
