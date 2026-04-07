@@ -9,6 +9,7 @@ import * as React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './Home';
 import CourseDetail from './CourseDetail';
+import ToolDetail from './ToolDetail';
 import AdminDashboard from './Admin.tsx';
 import AdminLogin from './AdminLogin.tsx';
 import Tools from './Tools.tsx';
@@ -16,6 +17,7 @@ import Login from './Login.tsx';
 import Profile from './Profile.tsx';
 import { AuthProvider } from './components/AuthContext';
 import { presenceService } from './services/presenceService';
+import CartDrawer from './components/CartDrawer';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, loginElement }: { children: React.ReactNode, loginElement?: React.ReactNode }) => {
@@ -69,9 +71,18 @@ const ReferralTracker = () => {
 };
 
 export default function App() {
+  const [isCartOpen, setIsCartOpen] = React.useState(false);
+
   React.useEffect(() => {
     presenceService.startPresence();
-    return () => presenceService.stopPresence();
+    
+    const handleOpenCart = () => setIsCartOpen(true);
+    window.addEventListener('open-cart', handleOpenCart);
+    
+    return () => {
+      presenceService.stopPresence();
+      window.removeEventListener('open-cart', handleOpenCart);
+    };
   }, []);
 
   return (
@@ -81,6 +92,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/course/:slug" element={<CourseDetail />} />
+          <Route path="/tool/:slug" element={<ToolDetail />} />
           <Route path="/tools" element={<Tools />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Login />} />
@@ -94,6 +106,7 @@ export default function App() {
             } 
             />
         </Routes>
+        <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
       </Router>
     </AuthProvider>
   );

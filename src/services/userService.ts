@@ -18,6 +18,10 @@ export interface UserProfile {
   referralCode: string;
   referredBy?: string;
   affiliateBalance?: number;
+  // VIP fields
+  vipStatus?: 'active' | 'pending' | 'none';
+  vipExpiryDate?: string;
+  vipJoinDate?: string;
 }
 
 export const userService = {

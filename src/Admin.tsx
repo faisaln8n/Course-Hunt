@@ -67,7 +67,8 @@ import { toolService } from './services/toolService';
 import { settingsService, AppSettings } from './services/settingsService';
 import { userService, UserProfile } from './services/userService';
 import { presenceService } from './services/presenceService';
-import { walletService, DepositRequest, WithdrawalRequest, ToolOrder } from './services/walletService';
+import { walletService, DepositRequest, WithdrawalRequest, ToolOrder, CourseOrder } from './services/walletService';
+import { vipService, VIPRequest } from './services/vipService';
 
 import { auth, googleProvider } from './firebase';
 import { signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
@@ -95,6 +96,7 @@ export default function AdminDashboard() {
   const [isDeleting, setIsDeleting] = useState(false);
   
   const [toolOrders, setToolOrders] = useState<ToolOrder[]>([]);
+  const [courseOrders, setCourseOrders] = useState<CourseOrder[]>([]);
   const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
   const [orderAccountInfo, setOrderAccountInfo] = useState('');
   
@@ -125,6 +127,15 @@ export default function AdminDashboard() {
     expiryDate: ''
   });
   const [editingDepositCouponIndex, setEditingDepositCouponIndex] = useState<number | null>(null);
+  
+  // Tool Coupon Form State
+  const [toolCouponForm, setToolCouponForm] = useState({
+    code: '',
+    discount: '',
+    toolId: 'all',
+    expiryDate: ''
+  });
+  const [editingToolCouponIndex, setEditingToolCouponIndex] = useState<number | null>(null);
 
   // Analytics State
   const [timeframe, setTimeframe] = useState(7);
@@ -142,6 +153,7 @@ export default function AdminDashboard() {
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [depositRequests, setDepositRequests] = useState<DepositRequest[]>([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
+  const [vipRequests, setVIPRequests] = useState<VIPRequest[]>([]);
 
   const navigate = useNavigate();
 
@@ -167,11 +179,19 @@ export default function AdminDashboard() {
     const unsubscribeToolOrders = walletService.onAllToolOrdersSnapshot((orders) => {
       setToolOrders(orders);
     });
+    const unsubscribeCourseOrders = walletService.onAllCourseOrdersSnapshot((orders) => {
+      setCourseOrders(orders);
+    });
+    const unsubscribeVIPRequests = vipService.onAllVIPRequestsSnapshot((requests) => {
+      setVIPRequests(requests);
+    });
     return () => {
       unsubscribeTx();
       unsubscribeReqs();
       unsubscribeWithdrawals();
       unsubscribeToolOrders();
+      unsubscribeCourseOrders();
+      unsubscribeVIPRequests();
     };
   }, [currentUser]);
 
@@ -331,6 +351,7 @@ export default function AdminDashboard() {
       image: formData.get('image') as string || previewImage || `https://picsum.photos/seed/${Date.now()}/800/600`,
       description: formData.get('description') as string,
       features: (formData.get('features') as string)?.split('\n').filter(f => f.trim()),
+      whatsIncluded: (formData.get('whatsIncluded') as string)?.split('\n').filter(f => f.trim()),
       sourceUrl: formData.get('sourceUrl') as string,
       password: formData.get('password') as string
     };
@@ -363,6 +384,7 @@ export default function AdminDashboard() {
       image: formData.get('image') as string || previewImage || editingTool.image,
       description: formData.get('description') as string,
       features: (formData.get('features') as string)?.split('\n').filter(f => f.trim()),
+      whatsIncluded: (formData.get('whatsIncluded') as string)?.split('\n').filter(f => f.trim()),
       sourceUrl: formData.get('sourceUrl') as string,
       password: formData.get('password') as string
     };
@@ -515,7 +537,8 @@ export default function AdminDashboard() {
       about: formData.get('about') as string || '',
       objectives: (formData.get('objectives') as string || '').split('\n').filter(Boolean),
       gallery: [...galleryFromText, ...galleryPreviews],
-      fileImages: [...fileImagesFromText, ...fileImagesPreviews]
+      fileImages: [...fileImagesFromText, ...fileImagesPreviews],
+      courseLink: formData.get('courseLink') as string || ''
     };
 
     // Check document size (Firestore limit is 1MB)
@@ -564,7 +587,8 @@ export default function AdminDashboard() {
       about: formData.get('about') as string || '',
       objectives: (formData.get('objectives') as string || '').split('\n').filter(Boolean),
       gallery: [...galleryFromText, ...galleryPreviews],
-      fileImages: [...fileImagesFromText, ...fileImagesPreviews]
+      fileImages: [...fileImagesFromText, ...fileImagesPreviews],
+      courseLink: formData.get('courseLink') as string || ''
     };
 
     // Check document size (Firestore limit is 1MB)
@@ -760,8 +784,18 @@ export default function AdminDashboard() {
                     </td>
                     <td className="py-4 px-4">
                       <div className="text-sm font-medium text-slate-600">{tx.description}</div>
-                      <div className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter bg-slate-100 text-slate-500 mt-1">
-                        {tx.type}
+                      <div className={cn(
+                        "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest mt-1",
+                        tx.type === 'deposit' ? "bg-green-100 text-green-600" :
+                        tx.type === 'withdrawal' ? "bg-red-100 text-red-600" :
+                        tx.type === 'course_purchase' ? "bg-blue-100 text-blue-600" :
+                        tx.type === 'tool_purchase' ? "bg-purple-100 text-purple-600" :
+                        tx.type === 'affiliate_commission' ? "bg-amber-100 text-amber-600" :
+                        tx.type === 'vip_join' ? "bg-yellow-100 text-yellow-600" :
+                        tx.type === 'refund' ? "bg-slate-100 text-slate-600" :
+                        "bg-slate-100 text-slate-500"
+                      )}>
+                        {tx.type.replace('_', ' ')}
                       </div>
                     </td>
                     <td className="py-4 px-4 text-right">
@@ -771,6 +805,119 @@ export default function AdminDashboard() {
                       )}>
                         {tx.amount > 0 ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
                       </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderVIPManagement = () => (
+    <div className="space-y-8">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-yellow-50 rounded-2xl text-yellow-600">
+              <StarIcon className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">VIP Membership Requests</h2>
+              <p className="text-slate-500 text-sm">Review and manage user VIP membership applications.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">User</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Full Name</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Telegram / WhatsApp</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
+                <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vipRequests.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400 font-medium">
+                    No VIP requests found
+                  </td>
+                </tr>
+              ) : (
+                vipRequests.map((req) => (
+                  <tr key={req.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-4 px-4">
+                      <div className="text-sm font-bold text-slate-900">{req.userEmail}</div>
+                      <div className="text-[10px] text-slate-400 font-medium">
+                        {req.createdAt?.toDate ? req.createdAt.toDate().toLocaleString() : 'Just now'}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="text-sm font-bold text-slate-900">{req.fullName}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="text-xs font-medium text-slate-600">TG: {req.telegramUsername}</div>
+                      <div className="text-xs font-medium text-slate-600">WA: {req.whatsappNumber}</div>
+                    </td>
+                    <td className="py-4 px-4 font-black text-slate-900">${req.amount}</td>
+                    <td className="py-4 px-4">
+                      <span className={cn(
+                        "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                        req.status === 'pending' ? "bg-blue-100 text-blue-600" :
+                        req.status === 'approved' ? "bg-green-100 text-green-600" :
+                        "bg-red-100 text-red-600"
+                      )}>
+                        {req.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      {req.status === 'pending' && (
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const result = await vipService.approveVIPRequest(req.id, req.userId);
+                                if (result.success) {
+                                  toast.success('VIP request approved successfully');
+                                } else {
+                                  toast.error(result.error || 'Failed to approve');
+                                }
+                              } catch (err) {
+                                toast.error('An error occurred');
+                              }
+                            }}
+                            className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
+                            title="Approve"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const result = await vipService.rejectVIPRequest(req.id, req.userId, req.amount);
+                                if (result.success) {
+                                  toast.success('VIP request rejected and funds refunded');
+                                } else {
+                                  toast.error(result.error || 'Failed to reject');
+                                }
+                              } catch (err) {
+                                toast.error('An error occurred');
+                              }
+                            }}
+                            className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                            title="Reject"
+                          >
+                            <Ban className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -1084,6 +1231,62 @@ export default function AdminDashboard() {
       </div>
     </div>
   );
+
+  const renderCourseOrders = () => {
+    const filteredOrders = courseOrders.filter(order => 
+      order.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.courseTitle.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-900">Course Purchase Orders</h2>
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full text-xs font-bold text-slate-600">
+            {filteredOrders.length} Orders
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">User</th>
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Course</th>
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-900">{order.userEmail}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{order.userId}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm font-bold text-slate-900">{order.courseTitle}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm font-black text-slate-900">${order.amount}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs text-slate-500">
+                        {order.timestamp?.toDate().toLocaleString()}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderToolOrders = () => {
     const filteredOrders = toolOrders.filter(order => 
@@ -2333,6 +2536,299 @@ export default function AdminDashboard() {
             </table>
           </div>
         </div>
+
+        {/* Manage Tool Coupons Section */}
+        <div id="manage-tool-coupons" className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="rounded-lg bg-purple-50 p-2">
+              <Tag className="h-5 w-5 text-purple-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Manage Tool Coupons</h2>
+          </div>
+
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Coupon Code</label>
+                <input 
+                  type="text"
+                  value={toolCouponForm.code}
+                  onChange={(e) => setToolCouponForm({ ...toolCouponForm, code: e.target.value.toUpperCase() })}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                  placeholder="e.g. TOOL20"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Discount (%)</label>
+                <input 
+                  type="number"
+                  value={toolCouponForm.discount}
+                  onChange={(e) => setToolCouponForm({ ...toolCouponForm, discount: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                  placeholder="e.g. 20"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Tool</label>
+                <select 
+                  value={toolCouponForm.toolId}
+                  onChange={(e) => setToolCouponForm({ ...toolCouponForm, toolId: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                >
+                  <option value="all">All Tools</option>
+                  {tools.map(tool => (
+                    <option key={tool.id} value={tool.id}>{tool.title}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Expiry Date</label>
+                <input 
+                  type="datetime-local"
+                  value={toolCouponForm.expiryDate}
+                  onChange={(e) => setToolCouponForm({ ...toolCouponForm, expiryDate: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div className="flex items-end gap-2">
+                <button 
+                  type="button"
+                  onClick={async () => {
+                    const { code, discount, toolId, expiryDate } = toolCouponForm;
+                    const trimmedCode = code.trim();
+                    const numDiscount = Number(discount);
+                    const finalToolId = toolId === 'all' ? undefined : toolId;
+                    
+                    if (trimmedCode && numDiscount > 0) {
+                      const isDuplicate = (settings.toolCoupons || []).some((c, idx) => 
+                        idx !== editingToolCouponIndex && c.code === trimmedCode
+                      );
+                      
+                      if (isDuplicate) {
+                        toast.error('Coupon code already exists');
+                        return;
+                      }
+
+                      let newCoupons;
+                      if (editingToolCouponIndex !== null) {
+                        newCoupons = (settings.toolCoupons || []).map((c, idx) => 
+                          idx === editingToolCouponIndex ? { ...c, code: trimmedCode, discount: numDiscount, toolId: finalToolId, expiryDate: expiryDate || undefined } : c
+                        );
+                      } else {
+                        newCoupons = [...(settings.toolCoupons || []), { code: trimmedCode, discount: numDiscount, isActive: true, toolId: finalToolId, expiryDate: expiryDate || undefined }];
+                      }
+
+                      const newSettings = { ...settings, toolCoupons: newCoupons };
+                      setSettings(newSettings);
+                      
+                      const result = await settingsService.updateSettings(newSettings);
+                      if (!result.error) {
+                        toast.success(editingToolCouponIndex !== null ? 'Tool coupon updated' : 'Tool coupon added');
+                        setToolCouponForm({ code: '', discount: '', toolId: 'all', expiryDate: '' });
+                        setEditingToolCouponIndex(null);
+                      } else {
+                        toast.error('Failed to save to database');
+                      }
+                    } else {
+                      toast.error('Please enter a valid code and discount');
+                    }
+                  }}
+                  className={cn(
+                    "w-full rounded-xl py-3 text-sm font-bold text-white transition-all",
+                    editingToolCouponIndex !== null ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-900 hover:bg-slate-800"
+                  )}
+                >
+                  {editingToolCouponIndex !== null ? 'Update' : 'Add'}
+                </button>
+                {editingToolCouponIndex !== null && (
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setToolCouponForm({ code: '', discount: '', toolId: 'all', expiryDate: '' });
+                      setEditingToolCouponIndex(null);
+                    }}
+                    className="rounded-xl bg-slate-100 p-3 text-slate-600 hover:bg-slate-200"
+                  >
+                    <CloseIcon className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="min-w-[800px] w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                  <tr>
+                    <th className="px-6 py-3">Code</th>
+                    <th className="px-6 py-3">Discount</th>
+                    <th className="px-6 py-3">Tool</th>
+                    <th className="px-6 py-3">Expiry</th>
+                    <th className="px-6 py-3">Status</th>
+                    <th className="px-6 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(settings.toolCoupons || []).map((coupon, i) => {
+                    const isExpired = coupon.expiryDate && new Date(coupon.expiryDate) < new Date();
+                    return (
+                      <tr key={i}>
+                        <td className="px-6 py-4 font-bold text-slate-900">{coupon.code}</td>
+                        <td className="px-6 py-4 text-slate-600">{coupon.discount}%</td>
+                        <td className="px-6 py-4 text-slate-600">
+                          {coupon.toolId ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px] font-bold">
+                              {tools.find(t => t.id === coupon.toolId)?.title || 'Unknown Tool'}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">All Tools</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-slate-600">
+                          {coupon.expiryDate ? (
+                            <span className={`inline-flex items-center gap-1 text-xs ${isExpired ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
+                              <Clock className="h-3 w-3" />
+                              {new Date(coupon.expiryDate).toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">No Expiry</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <button 
+                            type="button"
+                            onClick={async () => {
+                              const newCoupons = (settings.toolCoupons || []).map((c, idx) => 
+                                idx === i ? { ...c, isActive: !c.isActive } : c
+                              );
+                              const newSettings = { ...settings, toolCoupons: newCoupons };
+                              setSettings(newSettings);
+                              await settingsService.updateSettings(newSettings);
+                              toast.success(`Coupon ${newCoupons[i].isActive ? 'activated' : 'deactivated'}`);
+                            }}
+                            className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-medium ${coupon.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}
+                          >
+                            {coupon.isActive ? 'Active' : 'Inactive'}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setToolCouponForm({
+                                  code: coupon.code,
+                                  discount: String(coupon.discount),
+                                  toolId: coupon.toolId || 'all',
+                                  expiryDate: coupon.expiryDate || ''
+                                });
+                                setEditingToolCouponIndex(i);
+                                document.getElementById('manage-tool-coupons')?.scrollIntoView({ behavior: 'smooth' });
+                              }}
+                              className="text-slate-400 hover:text-blue-600 transition-colors"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={async () => {
+                                const newCoupons = (settings.toolCoupons || []).filter((_, idx) => idx !== i);
+                                const newSettings = { ...settings, toolCoupons: newCoupons };
+                                setSettings(newSettings);
+                                await settingsService.updateSettings(newSettings);
+                                toast.success('Coupon deleted');
+                              }}
+                              className="text-slate-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {(!settings.toolCoupons || settings.toolCoupons.length === 0) && (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-slate-500">No tool coupons created yet</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Featured Tools Section */}
+        <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="rounded-lg bg-indigo-50 p-2">
+              <Wrench className="h-5 w-5 text-indigo-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Featured Tools Settings</h2>
+          </div>
+
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Select Featured Tools</label>
+                <p className="text-xs text-slate-500 mb-4">Choose tools to highlight on the home page or specific sections.</p>
+                <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                  {tools.map(tool => (
+                    <label key={tool.id} className="flex items-center gap-3 p-2 hover:bg-white rounded-lg transition-colors cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={settings.featuredToolIds?.includes(String(tool.id))}
+                        onChange={async (e) => {
+                          const currentIds = settings.featuredToolIds || [];
+                          const newIds = e.target.checked 
+                            ? [...currentIds, String(tool.id)]
+                            : currentIds.filter(id => id !== String(tool.id));
+                          
+                          const newSettings = { ...settings, featuredToolIds: newIds };
+                          setSettings(newSettings);
+                          await settingsService.updateSettings(newSettings);
+                          toast.success(e.target.checked ? 'Tool featured' : 'Tool removed from featured');
+                        }}
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div className="flex items-center gap-3">
+                        <img src={tool.image} alt="" className="h-8 w-8 rounded object-cover" referrerPolicy="no-referrer" />
+                        <span className="text-sm font-medium text-slate-700">{tool.title}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-xl bg-slate-50 p-6">
+                  <h3 className="text-sm font-bold text-slate-900 mb-2">Featured Tools Summary</h3>
+                  <p className="text-xs text-slate-500 mb-4">You have {settings.featuredToolIds?.length || 0} tools featured.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {settings.featuredToolIds?.map(id => {
+                      const tool = tools.find(t => String(t.id) === id);
+                      return tool ? (
+                        <div key={id} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-[10px] font-bold text-slate-700">
+                          {tool.title}
+                          <button 
+                            onClick={async () => {
+                              const newIds = (settings.featuredToolIds || []).filter(fid => fid !== id);
+                              const newSettings = { ...settings, featuredToolIds: newIds };
+                              setSettings(newSettings);
+                              await settingsService.updateSettings(newSettings);
+                            }}
+                            className="text-slate-400 hover:text-red-500"
+                          >
+                            <CloseIcon className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -2387,11 +2883,25 @@ export default function AdminDashboard() {
               Courses
             </button>
             <button 
+              onClick={() => setActiveTab('course-orders')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'course-orders' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <BookOpen className="h-4 w-4" />
+              Course Orders
+            </button>
+            <button 
               onClick={() => setActiveTab('tools')}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'tools' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
             >
               <Wrench className="h-4 w-4" />
               Tools
+            </button>
+            <button 
+              onClick={() => setActiveTab('course-orders')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'course-orders' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <BookOpen className="h-4 w-4" />
+              Course Orders
             </button>
             <button 
               onClick={() => setActiveTab('tool-orders')}
@@ -2436,6 +2946,13 @@ export default function AdminDashboard() {
               Live Traffic
             </button>
             <button 
+              onClick={() => setActiveTab('vip')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'vip' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <StarIcon className="h-4 w-4" />
+              VIP Management
+            </button>
+            <button 
               onClick={() => setActiveTab('settings')}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
             >
@@ -2461,7 +2978,7 @@ export default function AdminDashboard() {
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur-md">
           <div className="flex items-center justify-between px-8 py-4">
             <h1 className="text-xl font-bold text-slate-900">
-              {activeTab === 'dashboard' ? 'Admin Overview' : activeTab === 'courses' ? 'Manage Courses' : activeTab === 'tools' ? 'Manage Tools' : activeTab === 'tool-orders' ? 'Tool Orders' : activeTab === 'users' ? 'User Management' : activeTab === 'wallet' ? 'Wallet Management' : activeTab === 'payments' ? 'Payment Proofs' : activeTab === 'withdrawals' ? 'Withdrawal Requests' : activeTab === 'traffic' ? 'Live Traffic' : 'Panel Settings'}
+              {activeTab === 'dashboard' ? 'Admin Overview' : activeTab === 'courses' ? 'Manage Courses' : activeTab === 'tools' ? 'Manage Tools' : activeTab === 'course-orders' ? 'Course Orders' : activeTab === 'tool-orders' ? 'Tool Orders' : activeTab === 'users' ? 'User Management' : activeTab === 'wallet' ? 'Wallet Management' : activeTab === 'payments' ? 'Payment Proofs' : activeTab === 'withdrawals' ? 'Withdrawal Requests' : activeTab === 'traffic' ? 'Live Traffic' : 'Panel Settings'}
             </h1>
             <div className="flex items-center gap-4">
               {activeTab === 'users' && (
@@ -2538,10 +3055,12 @@ export default function AdminDashboard() {
           {activeTab === 'wallet' && renderWallet()}
           {activeTab === 'payments' && renderPaymentProofs()}
           {activeTab === 'withdrawals' && renderWithdrawals()}
+          {activeTab === 'vip' && renderVIPManagement()}
           {activeTab === 'traffic' && renderLiveTraffic()}
           
           {activeTab === 'tools' && renderTools()}
           {activeTab === 'tool-orders' && renderToolOrders()}
+          {activeTab === 'course-orders' && renderCourseOrders()}
 
           {activeTab === 'courses' && (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -2783,14 +3302,26 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-sm font-semibold text-slate-700">Image URL</label>
-                    <input 
-                      name="image" 
-                      defaultValue={editingTool?.image}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                      placeholder="https://images.unsplash.com/..."
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-sm font-semibold text-slate-700">Image URL</label>
+                      <input 
+                        name="image" 
+                        defaultValue={editingTool?.image}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                        placeholder="https://images.unsplash.com/..."
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-semibold text-slate-700">Review Count</label>
+                      <input 
+                        name="reviews" 
+                        type="number" 
+                        defaultValue={editingTool?.reviews || 0}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                        placeholder="e.g. 128"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -2815,6 +3346,17 @@ export default function AdminDashboard() {
                       defaultValue={editingTool?.features?.join('\n')}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none font-mono"
                       placeholder="Feature 1&#10;Feature 2&#10;..."
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">What's Included (One per line)</label>
+                    <textarea 
+                      name="whatsIncluded" 
+                      rows={4}
+                      defaultValue={editingTool?.whatsIncluded?.join('\n')}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none font-mono"
+                      placeholder="e.g. Full Source Code Access&#10;Lifetime Free Updates&#10;..."
                     />
                   </div>
 
@@ -3026,6 +3568,19 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Course Link (Unlocked after purchase)</label>
+                    <div className="relative">
+                      <Plus className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        name="courseLink" 
+                        defaultValue={editingCourse?.courseLink}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                        placeholder="e.g. https://example.com/course-access"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-1">
                     <label className="text-sm font-semibold text-slate-700">About This Course</label>
                     <textarea 

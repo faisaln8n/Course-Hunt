@@ -6,19 +6,7 @@ const LoadingScreen: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white">
       <div className="relative">
-        {/* Outer pulse effect */}
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0.5 }}
-          animate={{ scale: 1.5, opacity: 0 }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeOut"
-          }}
-          className="absolute inset-0 bg-[#FF6B35] rounded-full blur-2xl"
-        />
-        
-        {/* Logo with bounce and scale animation */}
+        {/* Text Logo with bounce and scale animation */}
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -29,7 +17,6 @@ const LoadingScreen: React.FC = () => {
         >
           <motion.div
             animate={{ 
-              y: [0, -10, 0],
               scale: [1, 1.05, 1]
             }}
             transition={{
@@ -38,7 +25,7 @@ const LoadingScreen: React.FC = () => {
               ease: "easeInOut"
             }}
           >
-            <Logo className="w-24 h-24 md:w-32 md:h-32" />
+            <Logo size="xl" className="justify-center" />
           </motion.div>
         </motion.div>
       </div>
@@ -51,7 +38,7 @@ const LoadingScreen: React.FC = () => {
           transition={{ delay: 0.3 }}
           className="text-[#FF6B35] font-bold text-lg md:text-xl tracking-widest uppercase"
         >
-          Course Hunt
+          Owl's Club
         </motion.div>
         
         <div className="mt-4 flex gap-1">

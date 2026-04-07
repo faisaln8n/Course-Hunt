@@ -2,6 +2,11 @@ import { Course } from '../data/courses';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
+export interface CartItem {
+  id: string | number;
+  type: 'course' | 'tool';
+}
+
 const GUEST_CART_KEY = 'course_hunt_cart_guest';
 let currentUserId: string | null = null;
 let unsubscribe: (() => void) | null = null;
@@ -35,33 +40,39 @@ export const cartService = {
     window.dispatchEvent(new Event('cart-updated'));
   },
 
-  getCartItems(): (string | number)[] {
+  getCartItems(): CartItem[] {
+    let items: CartItem[] = [];
     if (currentUserId) {
-      // For now, we'll use a hybrid approach: localStorage for speed, 
-      // but scoped to the user. Firestore sync handles persistence across devices.
       const userKey = `course_hunt_cart_${currentUserId}`;
       const stored = localStorage.getItem(userKey);
-      return stored ? JSON.parse(stored) : [];
+      items = stored ? JSON.parse(stored) : [];
     } else {
       const stored = localStorage.getItem(GUEST_CART_KEY);
-      return stored ? JSON.parse(stored) : [];
+      items = stored ? JSON.parse(stored) : [];
     }
+    
+    // Migration: if items are just IDs (old format), convert them to courses
+    if (items.length > 0 && (typeof items[0] === 'string' || typeof items[0] === 'number')) {
+      return (items as unknown as (string | number)[]).map(id => ({ id, type: 'course' }));
+    }
+    
+    return items;
   },
 
-  async addToCart(courseId: string | number) {
+  async addToCart(id: string | number, type: 'course' | 'tool' = 'course') {
     const items = this.getCartItems();
-    if (!items.includes(courseId)) {
-      items.push(courseId);
+    if (!items.find(item => item.id === id && item.type === type)) {
+      items.push({ id, type });
       this._saveCart(items);
     }
   },
 
-  async removeFromCart(courseId: string | number) {
-    const items = this.getCartItems().filter(id => id !== courseId);
+  async removeFromCart(id: string | number, type: 'course' | 'tool') {
+    const items = this.getCartItems().filter(item => !(item.id === id && item.type === type));
     this._saveCart(items);
   },
 
-  async _saveCart(items: (string | number)[]) {
+  async _saveCart(items: CartItem[]) {
     if (currentUserId) {
       const userKey = `course_hunt_cart_${currentUserId}`;
       localStorage.setItem(userKey, JSON.stringify(items));
@@ -71,7 +82,7 @@ export const cartService = {
         const cartRef = doc(db, 'carts', currentUserId);
         await setDoc(cartRef, {
           userId: currentUserId,
-          items: items.map(String),
+          items: items,
           updatedAt: new Date().toISOString()
         });
       } catch (error) {
@@ -87,8 +98,8 @@ export const cartService = {
     return this.getCartItems().length;
   },
 
-  isInCart(courseId: string | number): boolean {
-    return this.getCartItems().includes(courseId);
+  isInCart(id: string | number, type: 'course' | 'tool'): boolean {
+    return !!this.getCartItems().find(item => item.id === id && item.type === type);
   },
 
   async clearCart() {

@@ -9,6 +9,7 @@ export interface Tool {
   category: string;
   description: string;
   features?: string[];
+  whatsIncluded?: string[];
   sourceUrl?: string;
   password?: string;
   createdAt?: any;

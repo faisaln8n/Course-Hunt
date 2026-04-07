@@ -25,6 +25,7 @@ export interface Coupon {
   discount: number;
   isActive: boolean;
   courseId?: string; // Optional: if missing, applies to all
+  toolId?: string; // Optional: for tool-specific coupons
   expiryDate?: string; // ISO string for the expiration date/time
 }
 
@@ -42,6 +43,8 @@ export interface AppSettings {
   categories: string[];
   coupons: Coupon[];
   depositCoupons: DepositCoupon[];
+  toolCoupons?: Coupon[];
+  featuredToolIds?: string[];
 }
 
 export const settingsService = {
@@ -52,7 +55,8 @@ export const settingsService = {
       announcementCountdown: '',
       categories: ['Development', 'Design', 'Marketing', 'Business'],
       coupons: [],
-      depositCoupons: []
+      depositCoupons: [],
+      toolCoupons: []
     };
   },
 
@@ -68,7 +72,9 @@ export const settingsService = {
           announcementCountdown: data.announcementCountdown || '',
           categories: data.categories || this.getDefaultSettings().categories,
           coupons: data.coupons || [],
-          depositCoupons: data.depositCoupons || []
+          depositCoupons: data.depositCoupons || [],
+          toolCoupons: data.toolCoupons || [],
+          featuredToolIds: data.featuredToolIds || []
         };
       }
       return this.getDefaultSettings();

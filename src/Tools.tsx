@@ -40,6 +40,7 @@ export default function Tools() {
   const [cartItems, setCartItems] = useState<Tool[]>([]);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(25); // 5 columns * 5 rows = 25
 
   useEffect(() => {
     const unsubscribe = toolService.subscribeToTools((data) => {
@@ -64,8 +65,10 @@ export default function Tools() {
 
   const updateCartItems = async () => {
     const allTools = await toolService.getTools();
-    const items = cartService.getCartItems()
-      .map(cartId => allTools.find(t => t.id === cartId))
+    const cartItems = cartService.getCartItems();
+    const items = cartItems
+      .filter(item => item.type === 'tool')
+      .map(item => allTools.find(t => t.id === item.id))
       .filter((t): t is Tool => !!t);
     setCartItems(items);
   };
@@ -132,12 +135,14 @@ export default function Tools() {
   };
 
   const addToCart = (tool: Tool) => {
-    if (cartService.isInCart(tool.id)) {
+    if (cartService.isInCart(tool.id, 'tool')) {
       toast.error('Already in cart');
+      window.dispatchEvent(new Event('open-cart'));
       return;
     }
-    cartService.addToCart(tool.id);
+    cartService.addToCart(tool.id, 'tool');
     toast.success('Added to cart');
+    window.dispatchEvent(new Event('open-cart'));
   };
 
   return (
@@ -148,9 +153,15 @@ export default function Tools() {
             <Logo size="md" />
           </Link>
           <div className="flex items-center gap-6">
+            <Link 
+              to="/tools" 
+              className="bg-[#FFD700] text-black px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all active:scale-95 no-underline"
+            >
+              Buy Tools
+            </Link>
             <div 
               className="relative cursor-pointer"
-              onClick={() => setIsCartOpen(true)}
+              onClick={() => window.dispatchEvent(new Event('open-cart'))}
             >
               <ShoppingCart className="w-5 h-5 text-slate-600" />
               {cartCount > 0 && (
@@ -183,21 +194,18 @@ export default function Tools() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto text-center mb-16">
-          <motion.div
+      <main className="container mx-auto px-4 py-8">
+        {/* Profile Header Section - Text Only */}
+        <div className="max-w-5xl mx-auto bg-white rounded-2xl p-10 mb-12 shadow-sm border border-slate-100 text-center">
+          <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-full text-xs font-black uppercase tracking-widest mb-6"
+            className="text-4xl md:text-6xl font-black text-slate-900 mb-6 uppercase tracking-tighter"
           >
-            <Wrench className="w-4 h-4" />
-            Premium Resources
-          </motion.div>
-          <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-6 uppercase tracking-tighter leading-none">
-            Buy Premium <span className="text-[#FF6B35]">Tools</span>
-          </h1>
-          <p className="text-slate-500 text-lg font-medium max-w-2xl mx-auto">
-            Access high-quality tools, scripts, and resources to accelerate your learning and development journey.
+            Explore Our <span className="text-[#FF6B35]">Premium</span> <span className="text-[#6907f7]">Tools</span>
+          </motion.h1>
+          <p className="text-slate-600 text-lg md:text-xl max-w-3xl mx-auto leading-relaxed font-medium">
+            Find practical digital products and services designed to help creators, freelancers, and brands grow online.
           </p>
         </div>
 
@@ -235,58 +243,62 @@ export default function Tools() {
             <div className="w-12 h-12 border-4 border-[#FF6B35] border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredTools.map((tool) => (
-              <motion.div
-                key={tool.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-[2rem] border-2 border-slate-100 overflow-hidden hover:border-[#FF6B35] transition-all group shadow-sm hover:shadow-xl"
-              >
-                <div className="relative aspect-video overflow-hidden">
-                  <img 
-                    src={tool.image} 
-                    alt={tool.title}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute top-4 left-4">
-                    <span className="px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest text-slate-900 shadow-sm">
-                      {tool.category}
-                    </span>
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-x-6 gap-y-10 md:gap-x-8 md:gap-y-12">
+              {filteredTools.slice(0, visibleCount).map((tool) => (
+                <motion.div
+                  key={tool.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-transparent overflow-hidden transition-all group flex flex-col cursor-pointer"
+                  onClick={() => navigate(`/tool/${tool.id}`)}
+                >
+                  <div className="relative aspect-square overflow-hidden rounded-md mb-4 shadow-sm border border-slate-100 bg-white">
+                    <img 
+                      src={tool.image} 
+                      alt={tool.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                    />
+                    {tool.category && (
+                      <div className="absolute top-2 left-2">
+                        <span className="px-2 py-0.5 bg-white/90 backdrop-blur-md rounded-full text-[8px] font-black uppercase tracking-widest text-slate-900 shadow-sm">
+                          {tool.category}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-black text-slate-900 mb-2 group-hover:text-[#FF6B35] transition-colors uppercase tracking-tight">
-                    {tool.title}
-                  </h3>
-                  <p className="text-slate-500 text-sm font-medium line-clamp-2 mb-4">
-                    {tool.description}
-                  </p>
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex flex-col flex-1">
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight line-clamp-2 leading-snug mb-1 group-hover:text-[#FF6B35] transition-colors">
+                      {tool.title}
+                    </h3>
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl font-black text-slate-900">${tool.price}</span>
+                      <span className="text-sm font-medium text-slate-900">
+                        {tool.price === 0 ? 'FREE' : `$ ${tool.price}`}
+                      </span>
                       {tool.originalPrice > tool.price && (
-                        <span className="text-sm text-slate-400 line-through font-bold">${tool.originalPrice}</span>
+                        <span className="text-xs text-slate-400 line-through font-medium">
+                          $ {tool.originalPrice}
+                        </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 text-yellow-500">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span className="text-sm font-black text-slate-900">{tool.rating}</span>
-                    </div>
                   </div>
-                  <button 
-                    onClick={() => addToCart(tool)}
-                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#FF6B35] transition-all flex items-center justify-center gap-2"
-                  >
-                    <CartIcon className="w-5 h-5" />
-                    Add to Cart
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {filteredTools.length > visibleCount && (
+              <div className="flex justify-center mt-16">
+                <button
+                  onClick={() => setVisibleCount(prev => prev + 12)}
+                  className="px-12 py-4 bg-white border border-slate-200 rounded-xl font-bold uppercase tracking-widest text-slate-900 hover:border-[#FF6B35] hover:text-[#FF6B35] transition-all shadow-sm active:scale-95"
+                >
+                  See More
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {!isLoading && filteredTools.length === 0 && (
@@ -298,95 +310,20 @@ export default function Tools() {
             <p className="text-slate-500 font-medium">Try adjusting your search or filter to find what you're looking for.</p>
           </div>
         )}
-      </main>
 
-      <AnimatePresence>
-        {isCartOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-            onClick={() => setIsCartOpen(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <h2 className="text-2xl font-black flex items-center gap-3 text-slate-900 uppercase tracking-tight">
-                  <ShoppingCart className="w-7 h-7 text-[#FF6B35]" />
-                  Your Cart
-                </h2>
-                <button 
-                  onClick={() => setIsCartOpen(false)}
-                  className="p-3 hover:bg-slate-200 rounded-full transition-colors"
-                >
-                  <X className="w-6 h-6 text-slate-400" />
-                </button>
-              </div>
-              
-              <div className="max-h-[50vh] overflow-y-auto p-8 space-y-4">
-                {cartItems.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <ShoppingCart className="w-10 h-10 text-slate-200" />
-                    </div>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Your cart is empty</p>
-                  </div>
-                ) : (
-                  cartItems.map((item) => (
-                    <div key={item.id} className="flex gap-4 items-center bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                      <img 
-                        src={item.image} 
-                        alt={item.title} 
-                        className="w-16 h-16 object-cover rounded-2xl shadow-sm"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-black text-slate-900 text-sm uppercase tracking-tight truncate">{item.title}</h4>
-                        <p className="text-[#FF6B35] font-black text-lg">${item.price}</p>
-                      </div>
-                      <button 
-                        onClick={() => cartService.removeFromCart(item.id)}
-                        className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-              
-              {cartItems.length > 0 && (
-                <div className="p-8 border-t border-slate-100 bg-slate-50/50">
-                  <div className="flex justify-between items-center mb-6">
-                    <span className="text-slate-500 font-black uppercase tracking-widest text-xs">Total Amount</span>
-                    <span className="text-3xl font-black text-slate-900">${cartItems.reduce((acc, item) => acc + item.price, 0).toFixed(2)}</span>
-                  </div>
-                  <button 
-                    className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-[#FF6B35] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                    disabled={isPurchasing}
-                    onClick={handleCheckout}
-                  >
-                    {isPurchasing ? (
-                      <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Check className="w-6 h-6" />
-                        Checkout with Wallet
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {/* Footer - Matching Screenshot */}
+        <div className="mt-24 pt-12 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6 pb-12">
+          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-slate-100 shadow-sm">
+            <span className="text-xs text-slate-400">Powered by</span>
+            <span className="text-sm font-black text-slate-900 uppercase tracking-tighter">Owl's Club</span>
+          </div>
+          <div className="flex items-center gap-6 text-slate-400 text-sm font-medium">
+            <a href="#" className="hover:text-slate-900 transition-colors">Terms</a>
+            <a href="#" className="hover:text-slate-900 transition-colors">Privacy</a>
+            <a href="#" className="hover:text-slate-900 transition-colors">Contact</a>
+          </div>
+        </div>
+      </main>
 
       <Toaster position="top-center" />
     </div>

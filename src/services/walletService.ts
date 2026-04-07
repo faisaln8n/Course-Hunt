@@ -19,9 +19,10 @@ export interface Transaction {
   id?: string;
   userId: string;
   amount: number;
-  type: 'deposit' | 'purchase';
+  type: 'deposit' | 'withdrawal' | 'course_purchase' | 'tool_purchase' | 'affiliate_commission' | 'vip_join' | 'refund' | 'purchase';
   description: string;
   timestamp: any;
+  productName?: string;
 }
 
 export interface DepositRequest {
@@ -58,6 +59,16 @@ export interface ToolOrder {
   amount: number;
   status: 'Ordered' | 'Purchased' | 'Rejected';
   accountInfo?: string;
+  timestamp: any;
+}
+
+export interface CourseOrder {
+  id?: string;
+  userId: string;
+  userEmail: string;
+  courseId: string;
+  courseTitle: string;
+  amount: number;
   timestamp: any;
 }
 
@@ -261,6 +272,59 @@ export const walletService = {
     });
   },
 
+  async deductFunds(userId: string, amount: number, description: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const userRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) throw new Error('User not found');
+      
+      const currentBalance = userDoc.data().walletBalance || 0;
+      if (currentBalance < amount) {
+        throw new Error('Insufficient balance');
+      }
+
+      await updateDoc(userRef, {
+        walletBalance: increment(-amount)
+      });
+
+      await addDoc(collection(db, 'transactions'), {
+        userId,
+        amount: -amount,
+        type: 'purchase',
+        description,
+        timestamp: serverTimestamp()
+      });
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error deducting funds:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  async addFunds(userId: string, amount: number, description: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        walletBalance: increment(amount)
+      });
+
+      await addDoc(collection(db, 'transactions'), {
+        userId,
+        amount,
+        type: 'deposit',
+        description,
+        timestamp: serverTimestamp()
+      });
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error adding funds:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   async purchaseCourse(userId: string, courseId: string, amount: number, courseTitle: string): Promise<{ success: boolean; error?: string }> {
     try {
       const userRef = doc(db, 'users', userId);
@@ -273,25 +337,32 @@ export const walletService = {
       const purchasedCourses = userData.purchasedCourses || [];
       const referredBy = userData.referredBy;
       
-      if (purchasedCourses.includes(courseId)) {
-        throw new Error('You already own this course');
-      }
-      
       if (currentBalance < amount) {
         throw new Error('Insufficient balance');
       }
 
-      // Update user balance and purchased courses
+      // Update user balance and purchased courses list (keeping for compatibility)
       await updateDoc(userRef, {
         walletBalance: increment(-amount),
         purchasedCourses: arrayUnion(courseId)
+      });
+
+      // Create course order
+      await addDoc(collection(db, 'course_orders'), {
+        userId,
+        userEmail: userData.email,
+        courseId,
+        courseTitle,
+        amount,
+        timestamp: serverTimestamp()
       });
 
       // Record transaction
       await addDoc(collection(db, 'transactions'), {
         userId,
         amount: -amount,
-        type: 'purchase',
+        type: 'course_purchase',
+        productName: courseTitle,
         description: `Purchased course: ${courseTitle}`,
         timestamp: serverTimestamp()
       });
@@ -309,7 +380,7 @@ export const walletService = {
         await addDoc(collection(db, 'transactions'), {
           userId: referredBy,
           amount: commission,
-          type: 'commission',
+          type: 'affiliate_commission',
           description: `Referral commission from ${userData.email}'s first purchase`,
           timestamp: serverTimestamp()
         });
@@ -318,6 +389,75 @@ export const walletService = {
       return { success: true };
     } catch (error: any) {
       console.error('Error purchasing course:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  async checkoutCart(userId: string, userEmail: string, items: { id: string; type: 'course' | 'tool'; price: number; title: string }[]): Promise<{ success: boolean; error?: string }> {
+    try {
+      const userRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) throw new Error('User not found');
+      
+      const userData = userDoc.data();
+      const currentBalance = userData.walletBalance || 0;
+      
+      const totalAmount = items.reduce((acc, item) => acc + item.price, 0);
+      
+      if (currentBalance < totalAmount) {
+        throw new Error('Insufficient balance');
+      }
+
+      const coursesToPurchase = items.filter(i => i.type === 'course');
+      const toolOrdersToCreate = items.filter(i => i.type === 'tool');
+
+      // Update user balance and purchased courses list
+      await updateDoc(userRef, {
+        walletBalance: increment(-totalAmount),
+        purchasedCourses: arrayUnion(...coursesToPurchase.map(c => c.id))
+      });
+
+      // Create course orders
+      for (const course of coursesToPurchase) {
+        await addDoc(collection(db, 'course_orders'), {
+          userId,
+          userEmail,
+          courseId: course.id,
+          courseTitle: course.title,
+          amount: course.price,
+          timestamp: serverTimestamp()
+        });
+      }
+
+      // Create tool orders
+      for (const tool of toolOrdersToCreate) {
+        await addDoc(collection(db, 'tool_orders'), {
+          userId,
+          userEmail,
+          toolId: tool.id,
+          toolTitle: tool.title,
+          amount: tool.price,
+          status: 'Ordered',
+          timestamp: serverTimestamp()
+        });
+      }
+
+      // Record transactions for each item
+      for (const item of items) {
+        await addDoc(collection(db, 'transactions'), {
+          userId,
+          amount: -item.price,
+          type: item.type === 'course' ? 'course_purchase' : 'tool_purchase',
+          productName: item.title,
+          description: `Purchased ${item.type}: ${item.title}`,
+          timestamp: serverTimestamp()
+        });
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error during checkout:', error);
       return { success: false, error: error.message };
     }
   },
@@ -497,7 +637,8 @@ export const walletService = {
       await addDoc(collection(db, 'transactions'), {
         userId,
         amount: -amount,
-        type: 'purchase',
+        type: 'tool_purchase',
+        productName: toolTitle,
         description: `Ordered tool: ${toolTitle}`,
         timestamp: serverTimestamp()
       });
@@ -523,6 +664,39 @@ export const walletService = {
       callback(orders);
     }, (error) => {
       console.error("Error fetching user tool orders:", error);
+    });
+  },
+
+  onUserCourseOrdersSnapshot(userId: string, callback: (orders: CourseOrder[]) => void): () => void {
+    const q = query(
+      collection(db, 'course_orders'),
+      where('userId', '==', userId),
+      orderBy('timestamp', 'desc')
+    );
+    return onSnapshot(q, (snapshot) => {
+      const orders = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as CourseOrder[];
+      callback(orders);
+    }, (error) => {
+      console.error("Error fetching user course orders:", error);
+    });
+  },
+
+  onAllCourseOrdersSnapshot(callback: (orders: CourseOrder[]) => void): () => void {
+    const q = query(
+      collection(db, 'course_orders'),
+      orderBy('timestamp', 'desc')
+    );
+    return onSnapshot(q, (snapshot) => {
+      const orders = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as CourseOrder[];
+      callback(orders);
+    }, (error) => {
+      console.error("Error fetching all course orders:", error);
     });
   },
 

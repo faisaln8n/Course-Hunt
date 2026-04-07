@@ -4,15 +4,16 @@ import { useUserAuth } from './components/AuthContext';
 import Logo from './components/ui/Logo';
 import { userService } from './services/userService';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Shield, Edit2, Save, X, Camera, LogOut, Heart, ShoppingCart, Trash2, Star, Target, CreditCard, History, BookOpen, CheckCircle, Wallet, Activity, ChevronRight, MessageCircle, Users, Share2, DollarSign, ExternalLink, Copy, Tag, Wrench, Eye, Clock } from 'lucide-react';
+import { ArrowLeft, User, Mail, Shield, Edit2, Save, X, Camera, LogOut, Heart, ShoppingCart, Trash2, Star, Target, CreditCard, History, BookOpen, CheckCircle, Wallet, Activity, ChevronRight, MessageCircle, Users, Share2, DollarSign, ExternalLink, Copy, Tag, Wrench, Eye, Clock, ArrowUpRight, RotateCcw } from 'lucide-react';
 import { wishlistService } from './services/wishlistService';
 import { courseService } from './services/courseService';
 import { Course } from './data/courses';
 import { cartService } from './services/cartService';
-import { walletService, Transaction as WalletTransaction, DepositRequest, WithdrawalRequest, ToolOrder } from './services/walletService';
+import { walletService, Transaction as WalletTransaction, DepositRequest, WithdrawalRequest, ToolOrder, CourseOrder } from './services/walletService';
 import { toolService } from './services/toolService';
 import { Tool } from './data/tools';
 import { UserProfile } from './services/userService';
+import { vipService, VIPRequest } from './services/vipService';
 import { toast } from 'sonner';
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
@@ -460,6 +461,246 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
   );
 };
 
+const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose: () => void, user: any, profile: UserProfile }) => {
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState({
+    fullName: '',
+    telegramUsername: '',
+    whatsappNumber: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isRenewal = profile.vipJoinDate ? true : false;
+  const price = isRenewal ? 5 : 10;
+
+  const handleSubmit = async () => {
+    if (!formData.fullName || !formData.telegramUsername || !formData.whatsappNumber) {
+      toast.error('Please fill all fields');
+      return;
+    }
+
+    if ((profile.walletBalance || 0) < price) {
+      toast.error(`Insufficient wallet balance. You need $${price} to join VIP.`);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await vipService.submitVIPRequest({
+        userId: user.uid,
+        userEmail: user.email,
+        fullName: formData.fullName,
+        telegramUsername: formData.telegramUsername,
+        whatsappNumber: formData.whatsappNumber,
+        amount: price
+      });
+
+      if (result.success) {
+        toast.success('VIP request submitted! Waiting for admin approval.');
+        onClose();
+      } else {
+        toast.error(result.error || 'Failed to submit VIP request');
+      }
+    } catch (err) {
+      console.error('VIP submission error:', err);
+      toast.error('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col md:flex-row min-h-[500px]"
+      >
+        {/* Left Side: Motivational Text (Slide 1 or Static) */}
+        <div className="md:w-5/12 bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 p-10 text-white flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF6B35]/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full -ml-32 -mb-32 blur-3xl"></div>
+          
+          <div className="relative z-10">
+            <div className="mb-10">
+              <div className="flex items-center gap-2 group cursor-default">
+                <div className="w-10 h-10 bg-[#FFD700] rounded-xl flex items-center justify-center shadow-lg shadow-[#FFD700]/20 group-hover:rotate-12 transition-transform duration-500">
+                  <Star className="text-black w-6 h-6 fill-current" />
+                </div>
+                <span className="text-2xl font-black tracking-tighter text-white uppercase">VIP<span className="text-[#FFD700]">Club</span></span>
+              </div>
+            </div>
+            <h3 className="text-4xl font-black mb-8 leading-tight uppercase tracking-tight">
+              Join the <span className="text-[#FFD700]">Elite</span> Circle
+            </h3>
+            <div className="space-y-6">
+              <div className="flex gap-4">
+                <div className="w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <CheckCircle className="w-4 h-4 text-yellow-400" />
+                </div>
+                <p className="text-slate-300 text-sm font-medium">
+                  Get <span className="text-white font-bold italic">Exclusive Discounts</span> on all courses and tools.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <CheckCircle className="w-4 h-4 text-blue-400" />
+                </div>
+                <p className="text-slate-300 text-sm font-medium">
+                  Early access to <span className="text-white font-bold italic">New Releases</span> and premium content.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <CheckCircle className="w-4 h-4 text-purple-400" />
+                </div>
+                <p className="text-slate-300 text-sm font-medium">
+                  Priority support and dedicated <span className="text-white font-bold italic">VIP Community</span> access.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative z-10 mt-12 p-6 bg-white/10 rounded-3xl border-2 border-[#FFD700]/30 backdrop-blur-md shadow-xl">
+            <p className="text-xs font-black text-[#FFD700] uppercase tracking-widest mb-2">Membership Fee</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-black text-white">${price}</span>
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">
+                {isRenewal ? '/ month renewal' : 'first month'}
+              </span>
+            </div>
+            {!isRenewal && (
+              <div className="mt-3 py-1.5 px-3 bg-[#FFD700] rounded-lg inline-block">
+                <p className="text-[10px] text-black font-black uppercase tracking-tighter">Next month renews at only $5</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Side: 2-Slide Content */}
+        <div className="md:w-7/12 p-10 bg-white flex flex-col">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                {step === 1 ? 'Why Join VIP?' : 'Complete Registration'}
+              </h3>
+              <p className="text-slate-400 text-xs font-bold mt-1">Step {step} of 2</p>
+            </div>
+            <button onClick={onClose} className="p-3 hover:bg-slate-100 rounded-full transition-colors">
+              <X className="w-6 h-6 text-slate-400" />
+            </button>
+          </div>
+
+          <AnimatePresence mode="wait">
+            {step === 1 ? (
+              <motion.div 
+                key="slide1"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="flex-1 flex flex-col"
+              >
+                <div className="flex-1 space-y-6">
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                    <p className="text-slate-600 font-medium leading-relaxed">
+                      Our VIP membership is designed for serious learners and creators who want to stay ahead of the curve. By joining, you're not just getting discounts; you're joining a community of like-minded individuals.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-center">
+                      <p className="text-2xl font-black text-blue-600">24/7</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">VIP Support</p>
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold text-slate-400 text-center italic">
+                    "The best investment I've made for my digital career." - VIP Member
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setStep(2)}
+                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-[#FF6B35] hover:text-black transition-all shadow-xl mt-8"
+                >
+                  Continue to Join
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div 
+                key="slide2"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="flex-1 flex flex-col space-y-6"
+              >
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Full Name</label>
+                    <input 
+                      type="text"
+                      value={formData.fullName}
+                      onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
+                      className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-[#FF6B35] transition-all font-bold text-sm"
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Telegram Username</label>
+                    <input 
+                      type="text"
+                      value={formData.telegramUsername}
+                      onChange={(e) => setFormData(prev => ({ ...prev, telegramUsername: e.target.value }))}
+                      className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-[#FF6B35] transition-all font-bold text-sm"
+                      placeholder="@username"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">WhatsApp Number</label>
+                    <input 
+                      type="text"
+                      value={formData.whatsappNumber}
+                      onChange={(e) => setFormData(prev => ({ ...prev, whatsappNumber: e.target.value }))}
+                      className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-[#FF6B35] transition-all font-bold text-sm"
+                      placeholder="+1234567890"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total to Pay</p>
+                    <p className="text-xl font-black text-slate-900">${price}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Wallet Balance</p>
+                    <p className="text-sm font-bold text-slate-600">${(profile.walletBalance || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    onClick={() => setStep(1)}
+                    className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all"
+                  >
+                    Back
+                  </button>
+                  <button 
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="flex-[2] py-4 bg-[#FFD700] text-black rounded-2xl font-black uppercase tracking-widest text-[10px] hover:shadow-2xl hover:-translate-y-1 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Processing...' : 'Join VIP Now'}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 const Profile: React.FC = () => {
   const { user, profile, loading, refreshProfile, logout } = useUserAuth();
   const navigate = useNavigate();
@@ -479,13 +720,33 @@ const Profile: React.FC = () => {
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [referredUsers, setReferredUsers] = useState<UserProfile[]>([]);
   const [purchasedCourses, setPurchasedCourses] = useState<Course[]>([]);
+  const [courseOrders, setCourseOrders] = useState<CourseOrder[]>([]);
   const [toolOrders, setToolOrders] = useState<ToolOrder[]>([]);
   const [allTools, setAllTools] = useState<Tool[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<ToolOrder | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'wallet' | 'courses' | 'tools' | 'wishlist' | 'support' | 'affiliate'>('profile');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab && ['profile', 'wallet', 'courses', 'tools', 'wishlist', 'support', 'affiliate'].includes(tab)) {
+      setActiveTab(tab as any);
+    }
+  }, []);
   const [supportMessage, setSupportMessage] = useState('');
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [isVIPModalOpen, setIsVIPModalOpen] = useState(false);
+  const [vipRequests, setVIPRequests] = useState<VIPRequest[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      const unsubscribe = vipService.onUserVIPRequestSnapshot(user.uid, (requests) => {
+        setVIPRequests(requests);
+      });
+      return () => unsubscribe();
+    }
+  }, [user]);
 
   useEffect(() => {
     const fetchTools = async () => {
@@ -523,6 +784,7 @@ const Profile: React.FC = () => {
     let referredUsersUnsubscribe: (() => void) | null = null;
     let withdrawalsUnsubscribe: (() => void) | null = null;
     let toolOrdersUnsubscribe: (() => void) | null = null;
+    let courseOrdersUnsubscribe: (() => void) | null = null;
 
     const loadWalletData = () => {
       if (user) {
@@ -549,6 +811,11 @@ const Profile: React.FC = () => {
         if (toolOrdersUnsubscribe) toolOrdersUnsubscribe();
         toolOrdersUnsubscribe = walletService.onUserToolOrdersSnapshot(user.uid, (orders) => {
           setToolOrders(orders);
+        });
+
+        if (courseOrdersUnsubscribe) courseOrdersUnsubscribe();
+        courseOrdersUnsubscribe = walletService.onUserCourseOrdersSnapshot(user.uid, (orders) => {
+          setCourseOrders(orders);
         });
       }
     };
@@ -583,6 +850,7 @@ const Profile: React.FC = () => {
       if (referredUsersUnsubscribe) referredUsersUnsubscribe();
       if (withdrawalsUnsubscribe) withdrawalsUnsubscribe();
       if (toolOrdersUnsubscribe) toolOrdersUnsubscribe();
+      if (courseOrdersUnsubscribe) courseOrdersUnsubscribe();
     };
   }, [profile, user]);
 
@@ -649,6 +917,12 @@ const Profile: React.FC = () => {
             <Logo size="md" />
           </Link>
           <div className="flex items-center gap-4">
+            <Link 
+              to="/tools" 
+              className="bg-[#FFD700] text-black px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all active:scale-95 no-underline"
+            >
+              Buy Tools
+            </Link>
             <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-slate-100">
               <Wallet className="w-4 h-4 text-[#FF6B35]" />
               <span className="text-sm font-black text-slate-900">${(profile.walletBalance || 0).toLocaleString()}</span>
@@ -790,10 +1064,11 @@ const Profile: React.FC = () => {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="bg-white rounded-3xl shadow-xl overflow-hidden"
+                  className="space-y-8"
                 >
-                  {/* Header/Cover */}
-                  <div className="relative h-48 group">
+                  <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+                    {/* Header/Cover */}
+                    <div className="relative h-48 group">
                     {editData.coverURL ? (
                       <img src={editData.coverURL} alt="Cover" className="w-full h-full object-cover" />
                     ) : (
@@ -945,6 +1220,66 @@ const Profile: React.FC = () => {
                         </p>
                       </section>
                     </div>
+
+                      {/* VIP Membership Card */}
+                      <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-[#FFD700]/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full -ml-32 -mb-32 blur-3xl"></div>
+                        
+                        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                          <div className="text-center md:text-left">
+                            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 rounded-full border border-white/20 backdrop-blur-md mb-4">
+                              <Star className="w-4 h-4 text-[#FFD700] fill-current" />
+                              <span className="text-[10px] font-black uppercase tracking-widest text-[#FFD700]">VIP Membership</span>
+                            </div>
+                            <h3 className="text-3xl font-black mb-2 tracking-tight uppercase">
+                              {profile.vipStatus === 'active' ? 'You are a VIP Member!' : 'Join the VIP Club'}
+                            </h3>
+                            <p className="text-slate-300 text-sm font-medium max-w-md leading-relaxed">
+                              {profile.vipStatus === 'active' 
+                                ? `Your membership is active until ${new Date(profile.vipExpiryDate!).toLocaleDateString()}. Enjoy exclusive benefits!`
+                                : profile.vipStatus === 'pending'
+                                ? 'Your VIP request is being reviewed by our team. You will be notified once approved.'
+                                : 'Unlock exclusive discounts, early access to new tools, and priority support. Join thousands of elite members today.'}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col items-center gap-4">
+                            {profile.vipStatus === 'active' ? (
+                              <div className="px-8 py-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl text-center">
+                                <p className="text-[10px] font-black text-[#FFD700] uppercase tracking-widest mb-1">Status</p>
+                                <p className="text-xl font-black text-white">ACTIVE</p>
+                              </div>
+                            ) : profile.vipStatus === 'pending' ? (
+                              <div className="px-8 py-4 bg-yellow-500/20 backdrop-blur-md border border-yellow-500/30 rounded-3xl text-center">
+                                <p className="text-[10px] font-black text-yellow-400 uppercase tracking-widest mb-1">Status</p>
+                                <p className="text-xl font-black text-white">PENDING APPROVAL</p>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center gap-3">
+                                <div className="flex flex-col items-center gap-1">
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-4xl font-black text-white">${profile.vipJoinDate ? '5' : '10'}</span>
+                                    <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                      {profile.vipJoinDate ? '/ month' : 'first month'}
+                                    </span>
+                                  </div>
+                                  {!profile.vipJoinDate && (
+                                    <p className="text-[10px] font-black text-[#FFD700] uppercase tracking-tighter mb-2">Next month only $5</p>
+                                  )}
+                                </div>
+                                <button 
+                                  onClick={() => setIsVIPModalOpen(true)}
+                                  className="px-10 py-4 bg-[#FFD700] text-black rounded-2xl font-black uppercase tracking-widest text-xs hover:shadow-2xl hover:-translate-y-1 transition-all active:scale-95"
+                                >
+                                  Join Now
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -959,10 +1294,10 @@ const Profile: React.FC = () => {
                 >
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">My Courses</h2>
-                    <span className="px-4 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold">{purchasedCourses.length} Courses</span>
+                    <span className="px-4 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold">{courseOrders.length} Courses</span>
                   </div>
 
-                  {purchasedCourses.length === 0 ? (
+                  {courseOrders.length === 0 ? (
                     <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-16 text-center shadow-sm">
                       <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
                         <BookOpen className="w-10 h-10 text-slate-300" />
@@ -978,29 +1313,44 @@ const Profile: React.FC = () => {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {purchasedCourses.map((course) => (
-                        <motion.div
-                          key={course.id}
-                          className="bg-white border-2 border-slate-100 rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 group"
-                        >
-                          <div className="relative h-40 overflow-hidden">
-                            <img src={course.image || ''} alt={course.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                            <div className="absolute top-4 right-4 px-3 py-1 bg-green-500 text-white text-[10px] font-black uppercase rounded-full shadow-lg">
-                              Purchased
+                      {courseOrders.map((order) => {
+                        const course = purchasedCourses.find(c => c.id === order.courseId);
+                        return (
+                          <motion.div
+                            key={order.id}
+                            className="bg-white border-2 border-slate-100 rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 group"
+                          >
+                            <div className="relative h-40 overflow-hidden">
+                              <img src={course?.image || ''} alt={order.courseTitle} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                              <div className="absolute top-4 right-4 px-3 py-1 bg-green-500 text-white text-[10px] font-black uppercase rounded-full shadow-lg">
+                                Purchased
+                              </div>
+                              <div className="absolute bottom-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-md text-white text-[9px] font-bold rounded-lg">
+                                Order #{order.id?.slice(-6).toUpperCase()}
+                              </div>
                             </div>
-                          </div>
-                          <div className="p-6">
-                            <h3 className="font-bold text-slate-900 mb-4 line-clamp-2 leading-tight">{course.title}</h3>
-                            <Link 
-                              to={`/course/${course.id}`}
-                              className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
-                            >
-                              Go to Course
-                              <ArrowLeft className="w-4 h-4 rotate-180" />
-                            </Link>
-                          </div>
-                        </motion.div>
-                      ))}
+                            <div className="p-6">
+                              <h3 className="font-bold text-slate-900 mb-2 line-clamp-2 leading-tight">{order.courseTitle}</h3>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4">
+                                {order.timestamp?.toDate ? order.timestamp.toDate().toLocaleString() : 'Just now'}
+                              </p>
+                              <button 
+                                onClick={() => {
+                                  if (course?.courseLink) {
+                                    window.location.href = course.courseLink;
+                                  } else {
+                                    navigate(`/course/${order.courseId}`);
+                                  }
+                                }}
+                                className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+                              >
+                                Go to Course
+                                <ArrowLeft className="w-4 h-4 rotate-180" />
+                              </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
                     </div>
                   )}
                 </motion.div>
@@ -1054,9 +1404,15 @@ const Profile: React.FC = () => {
                               )}>
                                 {order.status}
                               </div>
+                              <div className="absolute bottom-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-md text-white text-[9px] font-bold rounded-lg">
+                                Order #{order.id?.slice(-6).toUpperCase()}
+                              </div>
                             </div>
                             <div className="p-6">
-                              <h3 className="font-bold text-slate-900 mb-4 line-clamp-2 leading-tight">{tool.title}</h3>
+                              <h3 className="font-bold text-slate-900 mb-2 line-clamp-2 leading-tight">{tool.title}</h3>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4">
+                                {order.timestamp?.toDate ? order.timestamp.toDate().toLocaleString() : 'Just now'}
+                              </p>
                               <div className="flex flex-col gap-3">
                                 <button 
                                   onClick={() => setSelectedOrder(order)}
@@ -1238,30 +1594,64 @@ const Profile: React.FC = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {transactions.map((tx) => (
-                          <div key={tx.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all">
-                            <div className="flex items-center gap-4">
+                        {transactions.map((tx) => {
+                          const getTxDetails = (type: string) => {
+                            switch (type) {
+                              case 'deposit':
+                                return { icon: CreditCard, color: 'bg-green-50 text-green-500', label: 'Deposit' };
+                              case 'withdrawal':
+                                return { icon: ArrowUpRight, color: 'bg-red-50 text-red-500', label: 'Withdrawal' };
+                              case 'course_purchase':
+                                return { icon: BookOpen, color: 'bg-blue-50 text-blue-500', label: 'Course' };
+                              case 'tool_purchase':
+                                return { icon: Wrench, color: 'bg-purple-50 text-purple-500', label: 'Tool' };
+                              case 'affiliate_commission':
+                                return { icon: Users, color: 'bg-amber-50 text-amber-500', label: 'Affiliate' };
+                              case 'vip_join':
+                                return { icon: Star, color: 'bg-yellow-50 text-yellow-500', label: 'VIP' };
+                              case 'refund':
+                                return { icon: RotateCcw, color: 'bg-slate-50 text-slate-500', label: 'Refund' };
+                              default:
+                                return { icon: ShoppingCart, color: 'bg-slate-50 text-slate-500', label: 'Purchase' };
+                            }
+                          };
+
+                          const details = getTxDetails(tx.type);
+                          const Icon = details.icon;
+
+                          return (
+                            <div key={tx.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all group">
+                              <div className="flex items-center gap-4">
+                                <div className={cn(
+                                  "w-12 h-12 rounded-xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110",
+                                  details.color
+                                )}>
+                                  <Icon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={cn(
+                                      "text-[9px] font-black uppercase px-2 py-0.5 rounded-full",
+                                      details.color
+                                    )}>
+                                      {details.label}
+                                    </span>
+                                    <p className="font-bold text-slate-900">{tx.description}</p>
+                                  </div>
+                                  <p className="text-xs text-slate-400 font-medium">
+                                    {tx.timestamp?.toDate ? tx.timestamp.toDate().toLocaleString() : 'Just now'}
+                                  </p>
+                                </div>
+                              </div>
                               <div className={cn(
-                                "w-12 h-12 rounded-xl flex items-center justify-center shadow-sm",
-                                tx.type === 'deposit' ? "bg-green-50 text-green-500" : "bg-red-50 text-red-500"
+                                "text-lg font-black",
+                                (tx.type === 'deposit' || tx.type === 'affiliate_commission' || tx.type === 'refund') ? "text-green-500" : "text-red-500"
                               )}>
-                                {tx.type === 'deposit' ? <CreditCard className="w-6 h-6" /> : <ShoppingCart className="w-6 h-6" />}
-                              </div>
-                              <div>
-                                <p className="font-bold text-slate-900">{tx.description}</p>
-                                <p className="text-xs text-slate-400 font-medium">
-                                  {tx.timestamp?.toDate ? tx.timestamp.toDate().toLocaleString() : 'Just now'}
-                                </p>
+                                {(tx.type === 'deposit' || tx.type === 'affiliate_commission' || tx.type === 'refund') ? '+' : ''}{tx.amount.toLocaleString()}$
                               </div>
                             </div>
-                            <div className={cn(
-                              "text-lg font-black",
-                              tx.type === 'deposit' ? "text-green-500" : "text-red-500"
-                            )}>
-                              {tx.type === 'deposit' ? '+' : ''}{tx.amount.toLocaleString()}$
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -1324,9 +1714,12 @@ const Profile: React.FC = () => {
                                 </Link>
                                 <button 
                                   onClick={() => {
-                                    if (!cartService.isInCart(course.id)) {
-                                      cartService.addToCart(course.id);
+                                    if (!cartService.isInCart(course.id, 'course')) {
+                                      cartService.addToCart(course.id, 'course');
                                       toast.success('Added to cart!');
+                                      window.dispatchEvent(new Event('open-cart'));
+                                    } else {
+                                      window.dispatchEvent(new Event('open-cart'));
                                     }
                                   }}
                                   className="p-2 bg-[#FF6B35] text-black rounded-xl hover:shadow-md transition-all"
@@ -1645,6 +2038,21 @@ const Profile: React.FC = () => {
         isOpen={isDepositModalOpen} 
         onClose={() => setIsDepositModalOpen(false)} 
         user={user}
+      />
+
+      <WithdrawalModal 
+        isOpen={isWithdrawModalOpen}
+        onClose={() => setIsWithdrawModalOpen(false)}
+        userId={user.uid}
+        userEmail={user.email || ''}
+        balance={profile.affiliateBalance || 0}
+      />
+
+      <VIPModal
+        isOpen={isVIPModalOpen}
+        onClose={() => setIsVIPModalOpen(false)}
+        user={user}
+        profile={profile}
       />
     </div>
   );

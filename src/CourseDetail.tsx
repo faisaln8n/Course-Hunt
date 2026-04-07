@@ -121,8 +121,10 @@ export default function CourseDetail() {
       
       setCartCount(cartService.getCartCount());
       
-      const items = cartService.getCartItems()
-        .map(cartId => allCourses.find(c => c.id === cartId))
+      const cartItems = cartService.getCartItems();
+      const items = cartItems
+        .filter(item => item.type === 'course')
+        .map(item => allCourses.find(c => c.id === item.id))
         .filter((c): c is Course => !!c);
       setCartItems(items);
       setWishlistItems(wishlistService.getWishlistItems());
@@ -132,8 +134,10 @@ export default function CourseDetail() {
     const handleCartUpdate = async () => {
       setCartCount(cartService.getCartCount());
       const allCourses = await courseService.getCourses();
-      const items = cartService.getCartItems()
-        .map(cartId => allCourses.find(c => c.id === cartId))
+      const cartItems = cartService.getCartItems();
+      const items = cartItems
+        .filter(item => item.type === 'course')
+        .map(item => allCourses.find(c => c.id === item.id))
         .filter((c): c is Course => !!c);
       setCartItems(items);
     };
@@ -418,6 +422,12 @@ export default function CourseDetail() {
             <Logo size="md" />
           </Link>
           <div className="flex items-center gap-6">
+            <Link 
+              to="/tools" 
+              className="bg-[#FFD700] text-black px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all active:scale-95 no-underline"
+            >
+              Buy Tools
+            </Link>
             <Link to="/about" className="text-gray-600 hover:text-gray-900 font-medium text-sm" style={{ textDecoration: 'none' }}>
               About
             </Link>
@@ -593,21 +603,22 @@ export default function CourseDetail() {
             <div className="flex flex-col sm:flex-row gap-4 w-full justify-center items-center">
               <button 
                 onClick={() => {
-                  if (!cartService.isInCart(course.id)) {
-                    cartService.addToCart(course.id);
+                  if (!cartService.isInCart(course.id, 'course')) {
+                    cartService.addToCart(course.id, 'course');
                     toast.success('Added to cart!');
+                    window.dispatchEvent(new Event('open-cart'));
                   } else {
-                    setIsCartOpen(true);
+                    window.dispatchEvent(new Event('open-cart'));
                   }
                 }} 
                 className={cn(
                   "w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold transition-all shadow-md active:scale-95",
-                  cartService.isInCart(course.id)
+                  cartService.isInCart(course.id, 'course')
                     ? "bg-gray-100 text-gray-600 border border-gray-200"
                     : "bg-[#FF6B35] text-black hover:shadow-lg hover:-translate-y-0.5"
                 )}
               >
-                {cartService.isInCart(course.id) ? (
+                {cartService.isInCart(course.id, 'course') ? (
                   <>
                     <Check className="w-5 h-5" />
                     In Cart
@@ -950,7 +961,7 @@ export default function CourseDetail() {
                         </div>
                         <button 
                           onClick={() => {
-                            cartService.removeFromCart(item.id);
+                            cartService.removeFromCart(item.id, 'course');
                             toast.success('Removed from cart');
                           }}
                           className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"

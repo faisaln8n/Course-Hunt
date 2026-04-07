@@ -55,6 +55,19 @@ export const wishlistService = {
     await this._saveWishlist(items);
   },
 
+  async addToWishlist(courseId: string) {
+    const items = this.getWishlistItems();
+    if (!items.includes(courseId)) {
+      items.push(courseId);
+      await this._saveWishlist(items);
+    }
+  },
+
+  async removeFromWishlist(courseId: string) {
+    const items = this.getWishlistItems().filter(id => id !== courseId);
+    await this._saveWishlist(items);
+  },
+
   async _saveWishlist(items: string[]) {
     if (currentUserId) {
       const userKey = `course_hunt_wishlist_${currentUserId}`;

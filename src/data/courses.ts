@@ -13,11 +13,13 @@ export interface Course {
   objectives?: string[];
   gallery?: string[];
   fileImages?: string[];
+  courseLink?: string;
 }
 
 export interface Review {
   id: string | number;
   course_id: string | number;
+  tool_id?: string; // Added to support tool reviews
   user_name: string;
   uid?: string;
   rating: number;

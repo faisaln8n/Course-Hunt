@@ -89,8 +89,28 @@
         "lastLogin": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" },
         "walletBalance": { "type": "number", "description": "Current wallet balance" },
-        "purchasedCourses": { "type": "array", "items": { "type": "string" }, "description": "List of course IDs purchased by the user" }
+        "purchasedCourses": { "type": "array", "items": { "type": "string" }, "description": "List of course IDs purchased by the user" },
+        "vipStatus": { "type": "string", "enum": ["none", "pending", "active", "expired"] },
+        "vipExpiryDate": { "type": "string", "format": "date-time" },
+        "vipJoinDate": { "type": "string", "format": "date-time" }
       }
+    },
+    "VIPRequest": {
+      "title": "VIP Request",
+      "description": "A request to join the VIP membership",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "fullName": { "type": "string" },
+        "telegramUsername": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userEmail", "fullName", "telegramUsername", "whatsappNumber", "amount", "status"]
     },
     "Transaction": {
       "title": "Transaction",
@@ -199,6 +219,10 @@
     "tools": {
       "schema": "Tool",
       "description": "Collection of digital tools"
+    },
+    "vip_requests": {
+      "schema": "VIPRequest",
+      "description": "Collection of VIP membership requests"
     }
   }
 }

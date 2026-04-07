@@ -377,8 +377,10 @@ export default function Home() {
       setSettings(fetchedSettings);
       setCartCount(cartService.getCartCount());
       
-      const items = cartService.getCartItems()
-        .map(id => fetchedCourses.find(c => c.id === id))
+      const cartItems = cartService.getCartItems();
+      const items = cartItems
+        .filter(item => item.type === 'course')
+        .map(item => fetchedCourses.find(c => c.id === item.id))
         .filter((c): c is Course => !!c);
       setCartItems(items);
       setIsLoading(false);
@@ -386,13 +388,12 @@ export default function Home() {
 
     const handleCartUpdate = () => {
       setCartCount(cartService.getCartCount());
-      setCourses(prevCourses => {
-        const items = cartService.getCartItems()
-          .map(id => prevCourses.find(c => c.id === id))
-          .filter((c): c is Course => !!c);
-        setCartItems(items);
-        return prevCourses;
-      });
+      const cartItems = cartService.getCartItems();
+      const items = cartItems
+        .filter(item => item.type === 'course')
+        .map(item => courses.find(c => c.id === item.id))
+        .filter((c): c is Course => !!c);
+      setCartItems(items);
     };
 
     const handleWishlistUpdate = () => {
@@ -615,7 +616,7 @@ export default function Home() {
           <div className="hidden md:flex items-center space-x-6">
             <Link 
               to="/tools" 
-              className="text-gray-700 font-semibold hover:text-[#FF6B35] transition-colors"
+              className="bg-[#FFD700] text-black px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all active:scale-95 no-underline"
             >
               Buy Tools
             </Link>
@@ -623,7 +624,7 @@ export default function Home() {
               className="relative cursor-pointer"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => setIsCartOpen(true)}
+              onClick={() => window.dispatchEvent(new Event('open-cart'))}
             >
               <ShoppingCart className="w-6 h-6 text-gray-700" />
               {cartCount >= 0 && (
@@ -694,7 +695,7 @@ export default function Home() {
               >
                 <Link 
                   to="/tools"
-                  className="text-center text-lg font-bold text-gray-900 hover:text-[#FF6B35]"
+                  className="bg-[#FFD700] text-black px-8 py-3 rounded-xl text-center text-lg font-black uppercase tracking-widest shadow-md active:scale-95 no-underline"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Buy Tools
@@ -746,36 +747,23 @@ export default function Home() {
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ 
               opacity: 1, 
-              y: [0, -10, 0], 
+              y: 0, 
               scale: 1 
             }}
-            transition={{ 
-              opacity: { duration: 0.7, ease: "easeOut" },
-              y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
-              scale: { duration: 0.7, ease: "easeOut" }
-            }}
-            className="text-[2.1rem] sm:text-[2.75rem] md:text-6xl lg:text-7xl font-bold mb-4 text-gray-900 leading-[1.1] md:leading-tight"
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="text-6xl md:text-[11rem] font-playfair italic font-medium mb-10 leading-[0.8] tracking-tight"
           >
-            <span className="inline-block whitespace-nowrap">
-              Discover Your <TypingText texts={["Next", "Future", "Dream", "Career"]} />
-            </span>
-            <br className="sm:hidden" />
-            <span className="inline-block ml-1 sm:ml-0">Course</span>
+            <div className="flex flex-col items-center">
+              <span className="block">
+                <span className="text-slate-900">Owl's</span>
+                <span className="text-[#FF6B35]">Club</span>
+                <span className="text-[#6907f7]">.</span>
+              </span>
+              <span className="text-xl md:text-4xl block mt-8 text-slate-500 font-space font-light tracking-[0.2em] uppercase">
+                The Ultimate <TypingText texts={['Premium Tools', 'Digital Assets', 'Creative Growth']} /> Hub
+              </span>
+            </div>
           </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ 
-              opacity: 1, 
-              y: [0, -5, 0] 
-            }}
-            transition={{ 
-              opacity: { duration: 0.7, delay: 0.15, ease: "easeOut" },
-              y: { duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.5 }
-            }}
-            className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-8"
-          >
-            Learn from top instructors and level up your skills
-          </motion.p>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -801,7 +789,7 @@ export default function Home() {
               </motion.div>
               <motion.input
                 type="text"
-                placeholder="Search for courses..."
+                placeholder="Search for tools..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FF6B35] focus:border-[#FF6B35] transition-all shadow-sm hover:shadow-md"
@@ -1056,16 +1044,22 @@ export default function Home() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              cartService.addToCart(course.id);
+                              if (cartService.isInCart(course.id, 'course')) {
+                                window.dispatchEvent(new Event('open-cart'));
+                                return;
+                              }
+                              cartService.addToCart(course.id, 'course');
+                              toast.success('Added to cart');
+                              window.dispatchEvent(new Event('open-cart'));
                             }}
                             className={cn(
                               "flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl transition-all shadow-sm",
-                              cartService.isInCart(course.id) 
+                              cartService.isInCart(course.id, 'course') 
                                 ? "bg-gray-100 text-gray-400 cursor-default" 
                                 : "bg-[#FF6B35] text-black hover:shadow-md"
                             )}
                           >
-                            {cartService.isInCart(course.id) ? <Check className="w-4 h-4 md:w-5 md:h-5" /> : <Plus className="w-4 h-4 md:w-5 md:h-5" />}
+                            {cartService.isInCart(course.id, 'course') ? <Check className="w-4 h-4 md:w-5 md:h-5" /> : <Plus className="w-4 h-4 md:w-5 md:h-5" />}
                           </motion.button>
                         </div>
                       </div>
@@ -1211,208 +1205,6 @@ export default function Home() {
       </footer>
     </div>
     <Toaster position="top-center" />
-    
-    {/* Cart Drawer */}
-    <AnimatePresence>
-      {isCartOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
-            onClick={() => setIsCartOpen(false)}
-          />
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 bottom-0 z-[70] w-full max-w-md bg-white shadow-2xl flex flex-col"
-          >
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <ShoppingCart className="w-6 h-6 text-[#FF6B35]" />
-                Your Cart
-              </h2>
-              <button 
-                onClick={() => setIsCartOpen(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-6">
-              {cartItems.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <ShoppingCart className="w-10 h-10 text-gray-300" />
-                  </div>
-                  <p className="text-gray-500 font-bold text-lg">Your cart is empty</p>
-                  <p className="text-gray-400 text-sm mt-1">Looks like you haven't added anything yet.</p>
-                  <button 
-                    onClick={() => setIsCartOpen(false)}
-                    className="mt-6 bg-[#FF6B35] text-black px-8 py-3 rounded-xl font-bold hover:shadow-lg transition-all"
-                  >
-                    Start Shopping
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {cartItems.map((item) => (
-                    <div key={item.id} className="flex gap-4 items-start bg-white border border-gray-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-                      <img 
-                        src={item.image || null} 
-                        alt={item.title} 
-                        className="w-20 h-20 object-cover rounded-xl flex-shrink-0"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = `https://picsum.photos/seed/${item.id}/200/200`;
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-gray-900 leading-tight mb-1 line-clamp-2">{item.title}</h4>
-                        <p className="text-[#FF6B35] font-black text-lg">{item.price}</p>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          cartService.removeFromCart(item.id);
-                          toast.success('Removed from cart');
-                        }}
-                        className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            {cartItems.length > 0 && (
-              <div className="p-6 border-t border-gray-100 bg-gray-50/50 space-y-4">
-                {/* Coupon Section */}
-                <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input 
-                        type="text" 
-                        placeholder="Enter coupon code" 
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                        disabled={!!appliedCoupon}
-                        className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B35] disabled:bg-gray-100 disabled:text-gray-500"
-                      />
-                    </div>
-                    {appliedCoupon ? (
-                      <button 
-                        onClick={() => {
-                          setAppliedCoupon(null);
-                          setCouponCode('');
-                          toast.info('Coupon removed');
-                        }}
-                        className="px-4 py-3 bg-red-50 text-red-500 rounded-xl font-bold text-sm hover:bg-red-100 transition-colors"
-                      >
-                        Remove
-                      </button>
-                    ) : (
-                      <button 
-                        onClick={() => {
-                          const coupon = (settings.coupons || []).find(c => c.code === couponCode && c.isActive);
-                          if (coupon) {
-                            // Check for expiry
-                            if (coupon.expiryDate && new Date(coupon.expiryDate) < new Date()) {
-                              toast.error('This coupon has expired');
-                              return;
-                            }
-                            // If coupon is for a specific course, check if that course is in cart
-                            if (coupon.courseId) {
-                              const isCourseInCart = cartItems.some(item => String(item.id) === coupon.courseId);
-                              if (!isCourseInCart) {
-                                toast.error('This coupon is only valid for a specific course not in your cart');
-                                return;
-                              }
-                            }
-                            setAppliedCoupon(coupon);
-                            toast.success(`Coupon applied: ${coupon.discount}% off!`);
-                          } else {
-                            toast.error('Invalid or inactive coupon code');
-                          }
-                        }}
-                        className="px-6 py-3 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors"
-                      >
-                        Apply
-                      </button>
-                    )}
-                  </div>
-                  {appliedCoupon && (
-                    <div className="flex items-center gap-2 text-green-600 text-sm font-bold bg-green-50 p-2 rounded-lg">
-                      <Check className="w-4 h-4" />
-                      Coupon "{appliedCoupon.code}" applied successfully!
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2 pt-2">
-                  <div className="flex justify-between items-center text-gray-500">
-                    <span className="text-sm font-medium">Subtotal</span>
-                    <span className="font-bold">
-                      ${cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0).toFixed(2)}
-                    </span>
-                  </div>
-                  {appliedCoupon && (
-                    <div className="flex justify-between items-center text-green-600">
-                      <span className="text-sm font-medium">
-                        Discount ({appliedCoupon.discount}%)
-                        {appliedCoupon.courseId && " - Course Specific"}
-                      </span>
-                      <span className="font-bold">
-                        -${(
-                          appliedCoupon.courseId 
-                            ? (Number(cartItems.find(item => String(item.id) === appliedCoupon.courseId)?.price.replace('$', '') || 0) * appliedCoupon.discount / 100)
-                            : (cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0) * appliedCoupon.discount / 100)
-                        ).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-                    <span className="text-lg font-bold text-gray-900">Total</span>
-                    <span className="text-2xl font-black text-[#FF6B35]">
-                      ${(
-                        cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0) - 
-                        (appliedCoupon ? (
-                          appliedCoupon.courseId 
-                            ? (Number(cartItems.find(item => String(item.id) === appliedCoupon.courseId)?.price.replace('$', '') || 0) * appliedCoupon.discount / 100)
-                            : (cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0) * appliedCoupon.discount / 100)
-                        ) : 0)
-                      ).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                <button 
-                  className="w-full bg-[#FF6B35] text-black py-4 rounded-2xl font-bold shadow-lg shadow-[#FF6B35]/20 hover:shadow-xl hover:shadow-[#FF6B35]/30 transition-all flex items-center justify-center gap-2 text-lg mt-4 disabled:opacity-50"
-                  disabled={isPurchasing}
-                  onClick={handleCheckout}
-                >
-                  {isPurchasing ? (
-                    <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Check className="w-6 h-6" />
-                      Checkout with Wallet
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
     </>
   );
 }

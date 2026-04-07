@@ -11,10 +11,12 @@ import {
   orderBy,
   serverTimestamp
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { db, handleFirestoreError, OperationType, auth } from '../firebase';
 import { Tool } from '../data/tools';
+import { Review } from '../data/courses';
 
 const TOOLS_COLLECTION = 'tools';
+const REVIEWS_COLLECTION = 'reviews';
 
 export const toolService = {
   async getTools(): Promise<Tool[]> {
@@ -107,5 +109,63 @@ export const toolService = {
     });
 
     return unsubscribe;
+  },
+
+  async getReviews(toolId: string): Promise<Review[]> {
+    try {
+      const q = query(
+        collection(db, REVIEWS_COLLECTION), 
+        orderBy('created_at', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const allReviews = querySnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as unknown as Review[];
+      
+      return allReviews.filter(r => String(r.tool_id) === String(toolId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, REVIEWS_COLLECTION);
+      return [];
+    }
+  },
+
+  async addReview(review: Omit<Review, 'id' | 'created_at'> & { tool_id: string }) {
+    try {
+      const newReviewData = {
+        ...review,
+        uid: auth.currentUser?.uid || null,
+        created_at: new Date().toISOString(),
+        timestamp: serverTimestamp()
+      };
+      const docRef = await addDoc(collection(db, REVIEWS_COLLECTION), newReviewData);
+      const newReview: Review = {
+        ...newReviewData,
+        id: docRef.id
+      } as unknown as Review;
+
+      await this.updateToolStats(review.tool_id);
+
+      return { data: newReview, error: null };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, REVIEWS_COLLECTION);
+      return { data: null, error };
+    }
+  },
+
+  async updateToolStats(toolId: string) {
+    try {
+      const reviews = await this.getReviews(toolId);
+      const totalRating = reviews.reduce((acc, r) => acc + r.rating, 0);
+      const averageRating = reviews.length > 0 ? Math.round((totalRating / reviews.length) * 10) / 10 : 0;
+
+      const toolRef = doc(db, TOOLS_COLLECTION, toolId);
+      await updateDoc(toolRef, {
+        rating: averageRating,
+        reviews: reviews.length
+      });
+    } catch (error) {
+      console.error("Error updating tool stats:", error);
+    }
   }
 };

@@ -24,8 +24,10 @@ export default function About() {
     const loadInitialData = async () => {
       setCartCount(cartService.getCartCount());
       const allCourses = await courseService.getCourses();
-      const items = cartService.getCartItems()
-        .map(cartId => allCourses.find(c => c.id === cartId))
+      const cartItems = cartService.getCartItems();
+      const items = cartItems
+        .filter(item => item.type === 'course')
+        .map(item => allCourses.find(c => c.id === item.id))
         .filter((c): c is Course => !!c);
       setCartItems(items);
     };
@@ -33,8 +35,10 @@ export default function About() {
     const handleCartUpdate = async () => {
       setCartCount(cartService.getCartCount());
       const allCourses = await courseService.getCourses();
-      const items = cartService.getCartItems()
-        .map(cartId => allCourses.find(c => c.id === cartId))
+      const cartItems = cartService.getCartItems();
+      const items = cartItems
+        .filter(item => item.type === 'course')
+        .map(item => allCourses.find(c => c.id === item.id))
         .filter((c): c is Course => !!c);
       setCartItems(items);
     };
@@ -102,6 +106,12 @@ export default function About() {
             <Logo size="md" />
           </Link>
           <div className="flex items-center gap-6">
+            <Link 
+              to="/tools" 
+              className="bg-[#FFD700] text-black px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all active:scale-95 no-underline"
+            >
+              Buy Tools
+            </Link>
             <div 
               className="relative cursor-pointer"
               onClick={() => setIsCartOpen(true)}
@@ -326,7 +336,7 @@ export default function About() {
                         </div>
                         <button 
                           onClick={() => {
-                            cartService.removeFromCart(item.id);
+                            cartService.removeFromCart(item.id, 'course');
                             toast.success('Removed from cart');
                           }}
                           className="p-2 text-gray-400 hover:text-red-500 transition-colors"

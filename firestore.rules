@@ -317,5 +317,19 @@ service cloud.firestore {
       allow update: if isAdmin() && isValidTool(request.resource.data);
       allow delete: if isAdmin();
     }
+
+    match /tool_orders/{orderId} {
+      allow read: if isAdmin() || (isAuthenticated() && isOwner(resource.data.userId));
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && request.resource.data.status == 'Ordered';
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /course_orders/{orderId} {
+      allow read: if isAdmin() || (isAuthenticated() && isOwner(resource.data.userId));
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
   }
 }
