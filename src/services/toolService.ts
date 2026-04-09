@@ -6,7 +6,6 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  onSnapshot, 
   query, 
   orderBy,
   serverTimestamp
@@ -93,22 +92,6 @@ export const toolService = {
       handleFirestoreError(error, OperationType.DELETE, path);
       return { error };
     }
-  },
-
-  subscribeToTools(callback: (tools: Tool[]) => void) {
-    const q = query(collection(db, TOOLS_COLLECTION), orderBy('title', 'asc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tools = snapshot.docs.map(doc => ({
-        ...doc.data() as any,
-        id: doc.id
-      })) as Tool[];
-      callback(tools);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, TOOLS_COLLECTION);
-    });
-
-    return unsubscribe;
   },
 
   async getReviews(toolId: string): Promise<Review[]> {

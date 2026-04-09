@@ -14,12 +14,14 @@ import {
   Tag,
   ArrowLeft,
   Wrench,
-  ExternalLink
+  ExternalLink,
+  Plus
 } from 'lucide-react';
 import { useUserAuth } from './components/AuthContext';
 import Logo from './components/ui/Logo';
 import { cartService } from './services/cartService';
 import { toolService } from './services/toolService';
+import { settingsService, AppSettings } from './services/settingsService';
 import { Tool } from './data/tools';
 import { walletService } from './services/walletService';
 import { Toaster, toast } from 'sonner';
@@ -40,14 +42,21 @@ export default function Tools() {
   const [cartItems, setCartItems] = useState<Tool[]>([]);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [settings, setSettings] = useState<AppSettings>(settingsService.getDefaultSettings());
   const [visibleCount, setVisibleCount] = useState(25); // 5 columns * 5 rows = 25
 
   useEffect(() => {
-    const unsubscribe = toolService.subscribeToTools((data) => {
-      setTools(data);
-      setFilteredTools(data);
+    const loadData = async () => {
+      setIsLoading(true);
+      const [fetchedSettings, fetchedTools] = await Promise.all([
+        settingsService.getSettings(),
+        toolService.getTools()
+      ]);
+      setSettings(fetchedSettings);
+      setTools(fetchedTools);
       setIsLoading(false);
-    });
+    };
+    loadData();
 
     const handleCartUpdate = () => {
       setCartCount(cartService.getCartCount());
@@ -58,7 +67,6 @@ export default function Tools() {
     updateCartItems();
 
     return () => {
-      unsubscribe();
       window.removeEventListener('cart-updated', handleCartUpdate);
     };
   }, []);
@@ -74,7 +82,18 @@ export default function Tools() {
   };
 
   useEffect(() => {
-    let result = tools;
+    let result = [...tools];
+    
+    // Sort by featured status first
+    const featuredIds = settings.featuredToolIds || [];
+    result.sort((a, b) => {
+      const aFeatured = featuredIds.includes(String(a.id));
+      const bFeatured = featuredIds.includes(String(b.id));
+      if (aFeatured && !bFeatured) return -1;
+      if (!aFeatured && bFeatured) return 1;
+      return 0;
+    });
+
     if (selectedCategory !== "All") {
       result = result.filter(t => t.category === selectedCategory);
     }
@@ -85,7 +104,7 @@ export default function Tools() {
       );
     }
     setFilteredTools(result);
-  }, [searchQuery, selectedCategory, tools]);
+  }, [searchQuery, selectedCategory, tools, settings.featuredToolIds]);
 
   const categories = ["All", ...Array.from(new Set(tools.map(t => t.category)))];
 
@@ -150,15 +169,22 @@ export default function Tools() {
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="no-underline">
-            <Logo size="md" />
+            <Logo size="md" className="md:hidden" />
+            <Logo size="lg" className="hidden md:flex" />
           </Link>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 md:gap-6">
             <Link 
               to="/tools" 
-              className="bg-[#FFD700] text-black px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all active:scale-95 no-underline"
+              className="hidden md:flex items-center bg-[#7C3AED] text-white rounded-lg md:rounded-xl text-[10px] md:text-sm font-bold shadow-lg hover:bg-[#6D28D9] transition-all active:scale-95 no-underline overflow-hidden group"
             >
-              Buy Tools
+              <div className="flex items-center gap-1.5 md:gap-2 px-2.5 py-1.5 md:px-4 md:py-2">
+                <div className="bg-white/20 p-0.5 md:p-1 rounded-md group-hover:bg-white/30 transition-colors">
+                  <Plus className="w-3 md:w-3.5 h-3 md:h-3.5 text-white" />
+                </div>
+                <span className="uppercase tracking-wider">Buy Tools</span>
+              </div>
             </Link>
+
             <div 
               className="relative cursor-pointer"
               onClick={() => window.dispatchEvent(new Event('open-cart'))}
@@ -195,20 +221,6 @@ export default function Tools() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {/* Profile Header Section - Text Only */}
-        <div className="max-w-5xl mx-auto bg-white rounded-2xl p-10 mb-12 shadow-sm border border-slate-100 text-center">
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-4xl md:text-6xl font-black text-slate-900 mb-6 uppercase tracking-tighter"
-          >
-            Explore Our <span className="text-[#FF6B35]">Premium</span> <span className="text-[#6907f7]">Tools</span>
-          </motion.h1>
-          <p className="text-slate-600 text-lg md:text-xl max-w-3xl mx-auto leading-relaxed font-medium">
-            Find practical digital products and services designed to help creators, freelancers, and brands grow online.
-          </p>
-        </div>
-
         <div className="flex flex-col md:flex-row gap-6 mb-12">
           <div className="flex-1 relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -262,7 +274,12 @@ export default function Tools() {
                       referrerPolicy="no-referrer"
                     />
                     {tool.category && (
-                      <div className="absolute top-2 left-2">
+                      <div className="absolute top-2 left-2 flex flex-col gap-1">
+                        {settings.featuredToolIds?.includes(String(tool.id)) && (
+                          <span className="px-2 py-0.5 bg-[#FF6B35] text-white rounded-full text-[8px] font-black uppercase tracking-widest shadow-sm">
+                            Featured
+                          </span>
+                        )}
                         <span className="px-2 py-0.5 bg-white/90 backdrop-blur-md rounded-full text-[8px] font-black uppercase tracking-widest text-slate-900 shadow-sm">
                           {tool.category}
                         </span>
@@ -315,7 +332,7 @@ export default function Tools() {
         <div className="mt-24 pt-12 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6 pb-12">
           <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-slate-100 shadow-sm">
             <span className="text-xs text-slate-400">Powered by</span>
-            <span className="text-sm font-black text-slate-900 uppercase tracking-tighter">Owl's Club</span>
+            <span className="text-sm font-black text-slate-900 uppercase tracking-tighter">Cheap</span>
           </div>
           <div className="flex items-center gap-6 text-slate-400 text-sm font-medium">
             <a href="#" className="hover:text-slate-900 transition-colors">Terms</a>

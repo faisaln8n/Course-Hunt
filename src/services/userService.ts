@@ -1,5 +1,5 @@
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, updateDoc, collection, query, orderBy, where } from 'firebase/firestore';
 
 export interface UserProfile {
   uid: string;
@@ -38,20 +38,6 @@ export const userService = {
       handleFirestoreError(error, OperationType.GET, path);
       return null;
     }
-  },
-
-  onUserProfileSnapshot(uid: string, callback: (profile: UserProfile | null) => void): () => void {
-    const docRef = doc(db, 'users', uid);
-    return onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        callback({ uid, ...docSnap.data() } as UserProfile);
-      } else {
-        callback(null);
-      }
-    }, (error) => {
-      console.error("Error fetching user profile:", error);
-      handleFirestoreError(error, OperationType.GET, `users/${uid}`);
-    });
   },
 
   async createUserProfile(profile: UserProfile): Promise<void> {
@@ -98,26 +84,19 @@ export const userService = {
     }
   },
 
-  // Admin methods
-  onAllUsersSnapshot(callback: (users: UserProfile[]) => void, onError?: (error: any) => void): () => void {
+  async getAllUsers(): Promise<UserProfile[]> {
     const usersCollection = collection(db, 'users');
-    // No query/orderBy to avoid index issues or missing field filtering
-    return onSnapshot(usersCollection, (snapshot) => {
-      const users = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-      // Sort in memory: newest first
-      users.sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
-      });
-      callback(users);
-    }, (error) => {
-      console.error("Error fetching users:", error);
-      if (onError) onError(error);
-      handleFirestoreError(error, OperationType.LIST, 'users');
+    const querySnapshot = await getDocs(usersCollection);
+    const users = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+    users.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
     });
+    return users;
   },
 
+  // Admin methods
   async updateUserByAdmin(uid: string, data: Partial<UserProfile>): Promise<void> {
     const path = `users/${uid}`;
     try {
@@ -128,16 +107,12 @@ export const userService = {
     }
   },
 
-  onReferredUsersSnapshot(referrerId: string, callback: (users: UserProfile[]) => void): () => void {
+  async getReferredUsers(referrerId: string): Promise<UserProfile[]> {
     const q = query(
       collection(db, 'users'),
       where('referredBy', '==', referrerId)
     );
-    return onSnapshot(q, (snapshot) => {
-      const users = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-      callback(users);
-    }, (error) => {
-      console.error("Error fetching referred users:", error);
-    });
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
   }
 };

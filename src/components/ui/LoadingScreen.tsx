@@ -38,7 +38,7 @@ const LoadingScreen: React.FC = () => {
           transition={{ delay: 0.3 }}
           className="text-[#FF6B35] font-bold text-lg md:text-xl tracking-widest uppercase"
         >
-          Owl's Club
+          Cheap
         </motion.div>
         
         <div className="mt-4 flex gap-1">

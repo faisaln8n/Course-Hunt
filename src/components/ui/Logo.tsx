@@ -7,26 +7,36 @@ interface LogoProps {
 }
 
 const Logo: React.FC<LogoProps> = ({ className = "", size = 'md' }) => {
-  const textSizes = {
-    sm: "text-lg",
-    md: "text-2xl",
-    lg: "text-4xl",
-    xl: "text-6xl",
+  const sizes = {
+    sm: { main: "text-base" },
+    md: { main: "text-xl" },
+    lg: { main: "text-3xl" },
+    xl: { main: "text-5xl" },
   };
 
-  const currentSize = textSizes[size];
+  const current = sizes[size];
 
   return (
-    <div className={`flex items-center group ${className}`}>
-      <motion.span 
+    <div className={`flex items-center justify-center group ${className}`}>
+      <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`${currentSize} font-black tracking-tighter uppercase flex items-center gap-1`}
+        className="flex items-center"
       >
-        <span className="text-slate-900">Owl's</span>
-        <span className="text-[#FF6B35]">Club</span>
-        <span className="text-[#6907f7]">.</span>
-      </motion.span>
+        <span className={`${current.main} font-black tracking-tighter text-slate-900 uppercase leading-none flex items-center gap-[0.02em]`}>
+          CH
+          <span className="relative flex items-center justify-center mx-[0.05em]">
+            <div className="bg-slate-900 rounded-full w-[2.1em] h-[0.95em] flex items-center px-[0.1em]">
+              <motion.div 
+                animate={{ x: [0, 10, 0] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                className="bg-white rounded-full w-[0.75em] h-[0.75em] shadow-sm"
+              />
+            </div>
+          </span>
+          P
+        </span>
+      </motion.div>
     </div>
   );
 };

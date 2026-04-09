@@ -529,58 +529,58 @@ export default function Home() {
       
       {/* Announcement Bar */}
       {settings.announcement && isBannerVisible && (
-        <div className="relative z-40 bg-gradient-to-r from-[#f09433] via-[#dc2743] to-[#bc1888] text-white py-1 md:py-2 px-1 md:px-10 flex items-center justify-center overflow-hidden shadow-2xl border-b border-white/10">
-          <div className="flex items-center justify-center gap-1 md:gap-6 max-w-full px-1 md:px-0 overflow-hidden">
+        <div className="relative z-40 bg-gradient-to-r from-[#f09433] via-[#dc2743] to-[#bc1888] text-white py-2 md:py-2 px-1 md:px-10 flex items-center justify-center overflow-hidden shadow-2xl border-b border-white/10">
+          <div className="flex items-center justify-center gap-1 md:gap-6 max-w-full pr-7 md:pr-0 overflow-hidden flex-nowrap">
             {settings.announcementLink ? (
               <a 
                 href={settings.announcementLink.startsWith('http') || settings.announcementLink.startsWith('/') ? settings.announcementLink : `https://${settings.announcementLink}`} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1 md:gap-6 hover:opacity-90 transition-opacity no-underline"
+                className="flex items-center justify-center gap-1.5 md:gap-6 hover:opacity-90 transition-opacity no-underline flex-nowrap"
               >
                 <motion.div
                   animate={{ opacity: [0.8, 1, 0.8] }}
                   transition={{ duration: 3, repeat: Infinity }}
-                  className="flex items-center gap-1 md:gap-3 shrink-0"
+                  className="flex items-center gap-1.5 md:gap-3 shrink-0"
                 >
-                  <div className="bg-white/20 p-0.5 md:p-2 rounded-full backdrop-blur-sm">
-                    <Megaphone className="w-2.5 h-2.5 md:w-5 md:h-5 text-white" />
+                  <div className="bg-white/20 p-1 md:p-2 rounded-full backdrop-blur-sm">
+                    <Megaphone className="w-3 h-3 md:w-5 md:h-5 text-white" />
                   </div>
-                  <span className="font-mono text-[8px] md:text-[15px] text-[#6907f7] bg-[#ebf4f5] rounded-[4px] md:rounded-[5px] font-medium px-1 md:px-2 py-0.5 border border-white/10 whitespace-nowrap shadow-sm">
+                  <span className="font-mono text-[10px] md:text-[15px] text-[#6907f7] bg-[#ebf4f5] rounded-[4px] md:rounded-[5px] font-bold px-1 md:px-2 py-0.5 border border-white/10 whitespace-nowrap shadow-sm">
                     {settings.announcement}
                   </span>
                 </motion.div>
                 
                 {settings.announcementCountdown && (
-                  <div className="flex items-center gap-1 md:gap-3 shrink-0">
+                  <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
                     <div className="hidden md:block h-4 md:h-8 w-[1px] bg-white/20" />
                     <CountdownTimer targetDate={settings.announcementCountdown} />
                   </div>
                 )}
                 
-                <div className="bg-white text-[#dc2743] px-1 md:px-6 py-0.5 md:py-1.5 rounded-md md:rounded-xl text-[7px] md:text-sm font-black flex items-center gap-0.5 md:gap-2 shadow-lg whitespace-nowrap shrink-0">
+                <div className="bg-white text-[#dc2743] px-1.5 md:px-6 py-1 md:py-1.5 rounded-md md:rounded-xl text-[9px] md:text-sm font-black flex items-center gap-0.5 md:gap-2 shadow-lg whitespace-nowrap shrink-0">
                   <span className="hidden xs:inline">Learn More</span>
                   <span className="xs:hidden">Join</span>
-                  <ChevronRight className="w-2 h-2 md:w-4 md:h-4" />
+                  <ChevronRight className="w-2.5 h-2.5 md:w-4 md:h-4" />
                 </div>
               </a>
             ) : (
-              <div className="flex items-center justify-center gap-1 md:gap-6">
+              <div className="flex items-center justify-center gap-1.5 md:gap-6 flex-nowrap">
                 <motion.div
                   animate={{ opacity: [0.8, 1, 0.8] }}
                   transition={{ duration: 3, repeat: Infinity }}
-                  className="flex items-center gap-1 md:gap-3 shrink-0"
+                  className="flex items-center gap-1.5 md:gap-3 shrink-0"
                 >
-                  <div className="bg-white/20 p-0.5 md:p-2 rounded-full backdrop-blur-sm">
-                    <Megaphone className="w-2.5 h-2.5 md:w-5 md:h-5 text-white" />
+                  <div className="bg-white/20 p-1 md:p-2 rounded-full backdrop-blur-sm">
+                    <Megaphone className="w-3 h-3 md:w-5 md:h-5 text-white" />
                   </div>
-                  <span className="font-mono text-[8px] md:text-[15px] text-[#6907f7] bg-[#ebf4f5] rounded-[4px] md:rounded-[5px] font-medium px-1 md:px-2 py-0.5 border border-white/10 whitespace-nowrap shadow-sm">
+                  <span className="font-mono text-[10px] md:text-[15px] text-[#6907f7] bg-[#ebf4f5] rounded-[4px] md:rounded-[5px] font-bold px-1 md:px-2 py-0.5 border border-white/10 whitespace-nowrap shadow-sm">
                     {settings.announcement}
                   </span>
                 </motion.div>
                 
                 {settings.announcementCountdown && (
-                  <div className="flex items-center gap-1 md:gap-3 shrink-0">
+                  <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
                     <div className="hidden md:block h-4 md:h-8 w-[1px] bg-white/20" />
                     <CountdownTimer targetDate={settings.announcementCountdown} />
                   </div>
@@ -593,7 +593,7 @@ export default function Home() {
             className="absolute right-0.5 md:right-4 p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer z-50"
             aria-label="Close announcement"
           >
-            <X className="w-3 h-3 md:w-5 md:h-5 opacity-70 hover:opacity-100 text-white" />
+            <X className="w-3.5 h-3.5 md:w-5 md:h-5 opacity-70 hover:opacity-100 text-white" />
           </button>
         </div>
       )}
@@ -610,53 +610,62 @@ export default function Home() {
       >
         <nav className="container mx-auto px-4 md:px-6 lg:px-8 flex justify-between items-center h-16">
           <Link to="/" className="no-underline">
-            <Logo size="lg" />
+            <Logo size="md" className="md:hidden" />
+            <Logo size="lg" className="hidden md:flex" />
           </Link>
 
-          <div className="hidden md:flex items-center space-x-6">
+          <div className="flex items-center gap-3 md:gap-6">
             <Link 
               to="/tools" 
-              className="bg-[#FFD700] text-black px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all active:scale-95 no-underline"
+              className="hidden md:flex items-center bg-[#7C3AED] text-white rounded-lg md:rounded-xl text-[10px] md:text-sm font-bold shadow-lg hover:bg-[#6D28D9] transition-all active:scale-95 no-underline overflow-hidden group"
             >
-              Buy Tools
+              <div className="flex items-center gap-1.5 md:gap-2 px-2.5 py-1.5 md:px-4 md:py-2">
+                <div className="bg-white/20 p-0.5 md:p-1 rounded-md group-hover:bg-white/30 transition-colors">
+                  <Plus className="w-3 md:w-3.5 h-3 md:h-3.5 text-white" />
+                </div>
+                <span className="uppercase tracking-wider">Buy Tools</span>
+              </div>
             </Link>
-            <motion.div 
-              className="relative cursor-pointer"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => window.dispatchEvent(new Event('open-cart'))}
-            >
-              <ShoppingCart className="w-6 h-6 text-gray-700" />
-              {cartCount >= 0 && (
-                <span className="absolute -top-2 -right-2 bg-[#FF6B35] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
-                  {cartCount}
-                </span>
-              )}
-            </motion.div>
 
-            {user ? (
-              <div className="flex items-center gap-4">
-                <Link to="/profile" className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200 hover:border-[#FF6B35] transition-all">
-                  {user.photoURL ? (
-                    <img src={user.photoURL} alt={user.displayName || 'User'} className="w-6 h-6 rounded-full" />
-                  ) : (
-                    <User className="w-5 h-5 text-slate-600" />
-                  )}
-                  <span className="text-sm font-bold text-slate-700 max-w-[100px] truncate">
-                    {user.displayName?.split(' ')[0] || 'User'}
+            <div className="hidden md:flex items-center space-x-4 md:space-x-6">
+              <motion.div 
+                className="relative cursor-pointer"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => window.dispatchEvent(new Event('open-cart'))}
+              >
+                <ShoppingCart className="w-6 h-6 text-gray-700" />
+                {cartCount >= 0 && (
+                  <span className="absolute -top-2 -right-2 bg-[#FF6B35] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                    {cartCount}
                   </span>
-                </Link>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <Link 
-                  to="/login"
-                  className="bg-[#FF6B35] text-black px-6 py-2 rounded-full text-sm font-bold shadow-sm hover:shadow-md transition-all active:scale-95"
-                >
-                  Login
-                </Link>
-              </div>
-            )}
+                )}
+              </motion.div>
+
+              {user ? (
+                <div className="flex items-center gap-4">
+                  <Link to="/profile" className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200 hover:border-[#FF6B35] transition-all">
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt={user.displayName || 'User'} className="w-6 h-6 rounded-full" />
+                    ) : (
+                      <User className="w-5 h-5 text-slate-600" />
+                    )}
+                    <span className="text-sm font-bold text-slate-700 max-w-[100px] truncate">
+                      {user.displayName?.split(' ')[0] || 'User'}
+                    </span>
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Link 
+                    to="/login"
+                    className="bg-[#FF6B35] text-black px-6 py-2 rounded-full text-sm font-bold shadow-sm hover:shadow-md transition-all active:scale-95"
+                  >
+                    Login
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
 
           <motion.button
@@ -695,10 +704,13 @@ export default function Home() {
               >
                 <Link 
                   to="/tools"
-                  className="bg-[#FFD700] text-black px-8 py-3 rounded-xl text-center text-lg font-black uppercase tracking-widest shadow-md active:scale-95 no-underline"
+                  className="flex items-center justify-center gap-3 bg-[#7C3AED] text-white px-8 py-4 rounded-xl text-center text-lg font-black uppercase tracking-widest shadow-md active:scale-95 no-underline group"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  Buy Tools
+                  <div className="bg-white/20 p-1.5 rounded-md group-hover:bg-white/30 transition-colors">
+                    <Plus className="w-5 h-5 text-white" />
+                  </div>
+                  <span>Buy Tools</span>
                 </Link>
                 <div 
                   className="flex items-center justify-center space-x-2 py-2 cursor-pointer"
@@ -743,28 +755,6 @@ export default function Home() {
 
       <main className="relative z-10 pt-8 md:pt-12 pb-16">
         <section className="container mx-auto px-4 md:px-6 lg:px-8 text-center mb-16">
-          <motion.h1
-            initial={{ opacity: 0, y: 30, scale: 0.95 }}
-            animate={{ 
-              opacity: 1, 
-              y: 0, 
-              scale: 1 
-            }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="text-6xl md:text-[11rem] font-playfair italic font-medium mb-10 leading-[0.8] tracking-tight"
-          >
-            <div className="flex flex-col items-center">
-              <span className="block">
-                <span className="text-slate-900">Owl's</span>
-                <span className="text-[#FF6B35]">Club</span>
-                <span className="text-[#6907f7]">.</span>
-              </span>
-              <span className="text-xl md:text-4xl block mt-8 text-slate-500 font-space font-light tracking-[0.2em] uppercase">
-                The Ultimate <TypingText texts={['Premium Tools', 'Digital Assets', 'Creative Growth']} /> Hub
-              </span>
-            </div>
-          </motion.h1>
-
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

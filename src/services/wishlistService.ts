@@ -1,5 +1,5 @@
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const GUEST_WISHLIST_KEY = 'course_hunt_wishlist_guest';
 let currentUserId: string | null = null;
@@ -17,7 +17,7 @@ export const wishlistService = {
 
     if (userId) {
       const wishlistRef = doc(db, 'wishlists', userId);
-      unsubscribe = onSnapshot(wishlistRef, (docSnap) => {
+      getDoc(wishlistRef).then((docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           const items = data.items || [];
@@ -25,7 +25,7 @@ export const wishlistService = {
           localStorage.setItem(userKey, JSON.stringify(items));
           window.dispatchEvent(new Event('wishlist-updated'));
         }
-      }, (error) => {
+      }).catch((error) => {
         handleFirestoreError(error, OperationType.GET, `wishlists/${userId}`);
       });
     }

@@ -4,7 +4,7 @@ import { useUserAuth } from './components/AuthContext';
 import Logo from './components/ui/Logo';
 import { userService } from './services/userService';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Shield, Edit2, Save, X, Camera, LogOut, Heart, ShoppingCart, Trash2, Star, Target, CreditCard, History, BookOpen, CheckCircle, Wallet, Activity, ChevronRight, MessageCircle, Users, Share2, DollarSign, ExternalLink, Copy, Tag, Wrench, Eye, Clock, ArrowUpRight, RotateCcw } from 'lucide-react';
+import { ArrowLeft, User, Mail, Shield, Edit2, Save, X, Camera, LogOut, Heart, ShoppingCart, Trash2, Star, Target, CreditCard, History, BookOpen, CheckCircle, Wallet, Activity, ChevronRight, MessageCircle, Users, Share2, DollarSign, ExternalLink, Copy, Tag, Wrench, Eye, Clock, ArrowUpRight, RotateCcw, Send } from 'lucide-react';
 import { wishlistService } from './services/wishlistService';
 import { courseService } from './services/courseService';
 import { Course } from './data/courses';
@@ -173,23 +173,43 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
   };
 
   const handleSubmit = async () => {
-    if (!amount || !screenshot || (method === 'bKash' && !transactionId) || (method === 'Binance' && !binanceUid)) {
-      toast.error('Please fill all required fields and upload a screenshot');
+    console.log('Deposit handleSubmit triggered');
+    console.log('Current state:', { userId: user.uid, amount, method, transactionId, binanceUid, screenshot: screenshot ? 'present' : 'missing' });
+    
+    const numAmount = parseFloat(amount);
+    if (!amount || isNaN(numAmount) || numAmount <= 0) {
+      console.warn('Invalid amount:', amount);
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    if (!screenshot) {
+      console.warn('Missing screenshot');
+      toast.error('Please upload a payment screenshot');
+      return;
+    }
+
+    if ((method === 'bKash' && !transactionId) || (method === 'Binance' && !binanceUid)) {
+      console.warn('Missing transaction details for method:', method);
+      toast.error(`Please enter your ${method === 'bKash' ? 'Transaction ID' : 'Binance UID'}`);
       return;
     }
 
     setIsSubmitting(true);
     try {
+      console.log('Submitting deposit request to walletService...');
       const result = await walletService.submitDepositRequest({
         userId: user.uid,
         userEmail: user.email,
-        amount: Number(amount),
+        amount: numAmount,
         method: method!,
         transactionId: method === 'bKash' ? transactionId : undefined,
         binanceUid: method === 'Binance' ? binanceUid : undefined,
         couponCode: couponCode || undefined,
         screenshotUrl: screenshot
       });
+
+      console.log('Deposit submission result:', result);
 
       if (result.success) {
         toast.success('Deposit request submitted! Admin will review it shortly.');
@@ -203,10 +223,12 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
         setCouponCode('');
         setScreenshot(null);
       } else {
+        console.error('Deposit submission failed:', result.error);
         toast.error(result.error || 'Failed to submit request');
       }
     } catch (error) {
-      toast.error('An unexpected error occurred');
+      console.error('Deposit submission error:', error);
+      toast.error('An unexpected error occurred while submitting deposit');
     } finally {
       setIsSubmitting(false);
     }
@@ -219,10 +241,10 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col md:flex-row min-h-[600px]"
+        className="bg-white rounded-3xl md:rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col md:flex-row md:min-h-[600px] max-h-[95vh] md:max-h-[90vh]"
       >
-        {/* Left Side: Motivational Text */}
-        <div className="md:w-5/12 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-10 text-white flex flex-col justify-between relative overflow-hidden">
+        {/* Left Side: Motivational Text - Hidden on mobile */}
+        <div className="hidden md:flex md:w-5/12 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-10 text-white flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF6B35]/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full -ml-32 -mb-32 blur-3xl"></div>
           
@@ -275,16 +297,16 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
         </div>
 
         {/* Right Side: Deposit Form */}
-        <div className="md:w-7/12 p-10 bg-white overflow-y-auto max-h-[90vh]">
-          <div className="flex items-center justify-between mb-8">
+        <div className="w-full md:w-7/12 p-6 md:p-10 bg-white overflow-y-auto">
+          <div className="flex items-center justify-between mb-6 md:mb-8">
             <div>
-              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+              <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight">
                 {step === 'method' ? 'Select Method' : `Deposit via ${method}`}
               </h3>
-              <p className="text-slate-400 text-xs font-bold mt-1">Step {step === 'method' ? '1' : '2'} of 2</p>
+              <p className="text-slate-400 text-[10px] md:text-xs font-bold mt-1">Step {step === 'method' ? '1' : '2'} of 2</p>
             </div>
-            <button onClick={onClose} className="p-3 hover:bg-slate-100 rounded-full transition-colors">
-              <X className="w-6 h-6 text-slate-400" />
+            <button onClick={onClose} className="p-2 md:p-3 hover:bg-slate-100 rounded-full transition-colors">
+              <X className="w-5 h-5 md:w-6 md:h-6 text-slate-400" />
             </button>
           </div>
 
@@ -292,45 +314,45 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
             <div className="space-y-4">
               <button 
                 onClick={() => { setMethod('bKash'); setStep('details'); }}
-                className="w-full flex items-center justify-between p-6 bg-pink-50 border-2 border-pink-100 rounded-3xl hover:border-pink-300 transition-all group"
+                className="w-full flex items-center justify-between p-4 md:p-6 bg-pink-50 border-2 border-pink-100 rounded-2xl md:rounded-3xl hover:border-pink-300 transition-all group"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm">
-                    <span className="text-pink-600 font-black text-2xl">b</span>
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="w-10 h-10 md:w-14 md:h-14 bg-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-sm">
+                    <span className="text-pink-600 font-black text-xl md:text-2xl">b</span>
                   </div>
                   <div className="text-left">
-                    <p className="font-black text-slate-900 text-lg">bKash</p>
-                    <p className="text-xs text-pink-600 font-bold">Fast & Secure (Personal)</p>
+                    <p className="font-black text-slate-900 text-base md:text-lg">bKash</p>
+                    <p className="text-[10px] md:text-xs text-pink-600 font-bold">Fast & Secure (Personal)</p>
                   </div>
                 </div>
-                <ChevronRight className="w-6 h-6 text-pink-300 group-hover:translate-x-1 transition-transform" />
+                <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-pink-300 group-hover:translate-x-1 transition-transform" />
               </button>
 
               <button 
                 onClick={() => { setMethod('Binance'); setStep('details'); }}
-                className="w-full flex items-center justify-between p-6 bg-yellow-50 border-2 border-yellow-100 rounded-3xl hover:border-yellow-300 transition-all group"
+                className="w-full flex items-center justify-between p-4 md:p-6 bg-yellow-50 border-2 border-yellow-100 rounded-2xl md:rounded-3xl hover:border-yellow-300 transition-all group"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm">
-                    <span className="text-yellow-600 font-black text-2xl">B</span>
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="w-10 h-10 md:w-14 md:h-14 bg-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-sm">
+                    <span className="text-yellow-600 font-black text-xl md:text-2xl">B</span>
                   </div>
                   <div className="text-left">
-                    <p className="font-black text-slate-900 text-lg">Binance</p>
-                    <p className="text-xs text-yellow-600 font-bold">Global Crypto (UID)</p>
+                    <p className="font-black text-slate-900 text-base md:text-lg">Binance</p>
+                    <p className="text-[10px] md:text-xs text-yellow-600 font-bold">Global Crypto (UID)</p>
                   </div>
                 </div>
-                <ChevronRight className="w-6 h-6 text-yellow-300 group-hover:translate-x-1 transition-transform" />
+                <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-yellow-300 group-hover:translate-x-1 transition-transform" />
               </button>
 
-              <div className="w-full flex items-center justify-between p-6 bg-gradient-to-br from-sky-500 to-blue-700 border-2 border-blue-400 rounded-3xl shadow-lg relative overflow-hidden group opacity-90">
+              <div className="w-full flex items-center justify-between p-4 md:p-6 bg-gradient-to-br from-sky-500 to-blue-700 border-2 border-blue-400 rounded-2xl md:rounded-3xl shadow-lg relative overflow-hidden group opacity-90">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                <div className="flex items-center gap-4 relative z-10">
-                  <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-inner border border-white/20">
-                    <CreditCard className="w-8 h-8 text-white" />
+                <div className="flex items-center gap-3 md:gap-4 relative z-10">
+                  <div className="w-10 h-10 md:w-14 md:h-14 bg-white/20 backdrop-blur-md rounded-xl md:rounded-2xl flex items-center justify-center shadow-inner border border-white/20">
+                    <CreditCard className="w-6 h-6 md:w-8 md:h-8 text-white" />
                   </div>
                   <div className="text-left">
-                    <p className="font-black text-white text-lg tracking-tight">Stripe Card</p>
-                    <p className="text-xs text-blue-100 font-bold uppercase tracking-widest">Coming Soon</p>
+                    <p className="font-black text-white text-base md:text-lg tracking-tight">Stripe Card</p>
+                    <p className="text-[10px] md:text-xs text-blue-100 font-bold uppercase tracking-widest">Coming Soon</p>
                   </div>
                 </div>
                 <div className="relative z-10">
@@ -340,15 +362,15 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="p-6 bg-slate-900 rounded-3xl text-white relative overflow-hidden border border-white/5 shadow-2xl">
+              <div className="p-4 md:p-6 bg-slate-900 rounded-2xl md:rounded-3xl text-white relative overflow-hidden border border-white/5 shadow-2xl">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF6B35]/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-3 ml-1">Official Payment Detail</p>
-                <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/10 backdrop-blur-md group">
+                <div className="flex items-center justify-between bg-white/5 p-3 md:p-4 rounded-xl md:rounded-2xl border border-white/10 backdrop-blur-md group">
                   <div className="flex flex-col">
                     <span className="text-[9px] font-black text-[#FF6B35] uppercase tracking-widest mb-1">
                       {method === 'bKash' ? 'bKash Number' : 'Binance ID'}
                     </span>
-                    <p className="text-xl font-black tracking-widest font-mono text-white group-hover:text-[#FF6B35] transition-colors">
+                    <p className="text-lg md:text-xl font-black tracking-widest font-mono text-white group-hover:text-[#FF6B35] transition-colors">
                       {method === 'bKash' 
                         ? '01314493061' 
                         : '38018802'}
@@ -356,9 +378,9 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
                   </div>
                   <button 
                     onClick={() => copyToClipboard(method === 'bKash' ? '01314493061' : '38018802')}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#FF6B35] hover:bg-[#E85D04] text-black rounded-xl transition-all text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95"
+                    className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-[#FF6B35] hover:bg-[#E85D04] text-black rounded-lg md:rounded-xl transition-all text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95"
                   >
-                    <Copy className="w-3.5 h-3.5" />
+                    <Copy className="w-3 md:w-3.5 h-3 md:h-3.5" />
                     Copy
                   </button>
                 </div>
@@ -417,7 +439,7 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Payment Screenshot</label>
                 <div className="relative group">
                   <div className={cn(
-                    "w-full h-40 rounded-3xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all",
+                    "w-full h-32 md:h-40 rounded-2xl md:rounded-3xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all",
                     screenshot ? "border-[#FF6B35] bg-orange-50" : "border-slate-200 bg-slate-50 hover:border-[#FF6B35]"
                   )}>
                     {screenshot ? (
@@ -474,18 +496,25 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
   const price = isRenewal ? 5 : 10;
 
   const handleSubmit = async () => {
+    console.log('VIP handleSubmit triggered');
+    console.log('Current state:', { fullName: formData.fullName, telegram: formData.telegramUsername, whatsapp: formData.whatsappNumber, price, balance: profile.walletBalance });
+    
     if (!formData.fullName || !formData.telegramUsername || !formData.whatsappNumber) {
+      console.warn('Missing form fields');
       toast.error('Please fill all fields');
       return;
     }
 
-    if ((profile.walletBalance || 0) < price) {
-      toast.error(`Insufficient wallet balance. You need $${price} to join VIP.`);
+    const currentBalance = profile.walletBalance || 0;
+    if (currentBalance < price) {
+      console.warn('Insufficient balance:', { currentBalance, price });
+      toast.error('Insufficient wallet balance. You need to deposite more to join VIP.');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      console.log('Calling vipService.submitVIPRequest...');
       const result = await vipService.submitVIPRequest({
         userId: user.uid,
         userEmail: user.email,
@@ -495,10 +524,13 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
         amount: price
       });
 
+      console.log('VIP Request Result:', result);
+
       if (result.success) {
         toast.success('VIP request submitted! Waiting for admin approval.');
         onClose();
       } else {
+        console.error('VIP Request Failed:', result.error);
         toast.error(result.error || 'Failed to submit VIP request');
       }
     } catch (err) {
@@ -519,9 +551,9 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
         className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col md:flex-row min-h-[500px]"
       >
         {/* Left Side: Motivational Text (Slide 1 or Static) */}
-        <div className="md:w-5/12 bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 p-10 text-white flex flex-col justify-between relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF6B35]/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full -ml-32 -mb-32 blur-3xl"></div>
+        <div className="md:w-5/12 bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 p-10 text-white flex flex-col justify-between relative overflow-hidden border-r border-white/10">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#FFD700]/10 rounded-full -mr-32 -mt-32 blur-[100px] animate-pulse"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full -ml-32 -mb-32 blur-[100px] animate-pulse" style={{ animationDelay: '1s' }}></div>
           
           <div className="relative z-10">
             <div className="mb-10">
@@ -535,31 +567,24 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
             <h3 className="text-4xl font-black mb-8 leading-tight uppercase tracking-tight">
               Join the <span className="text-[#FFD700]">Elite</span> Circle
             </h3>
-            <div className="space-y-6">
-              <div className="flex gap-4">
-                <div className="w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0 mt-1">
-                  <CheckCircle className="w-4 h-4 text-yellow-400" />
+            <div className="space-y-3">
+              {[
+                "Exclusive discount coupons",
+                "Free new courses",
+                "Free methods updates",
+                "Dedicated support 24/7",
+                "Earning tips and tricks",
+                "Elite reel bundles and much more"
+              ].map((benefit, i) => (
+                <div key={i} className="flex gap-3 items-center group/item">
+                  <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 group-hover/item:bg-[#FFD700]/20 transition-colors">
+                    <CheckCircle className="w-4 h-4 text-[#FFD700]" />
+                  </div>
+                  <p className="text-slate-300 text-xs font-bold leading-tight group-hover/item:text-white transition-colors">
+                    {benefit}
+                  </p>
                 </div>
-                <p className="text-slate-300 text-sm font-medium">
-                  Get <span className="text-white font-bold italic">Exclusive Discounts</span> on all courses and tools.
-                </p>
-              </div>
-              <div className="flex gap-4">
-                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-1">
-                  <CheckCircle className="w-4 h-4 text-blue-400" />
-                </div>
-                <p className="text-slate-300 text-sm font-medium">
-                  Early access to <span className="text-white font-bold italic">New Releases</span> and premium content.
-                </p>
-              </div>
-              <div className="flex gap-4">
-                <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-1">
-                  <CheckCircle className="w-4 h-4 text-purple-400" />
-                </div>
-                <p className="text-slate-300 text-sm font-medium">
-                  Priority support and dedicated <span className="text-white font-bold italic">VIP Community</span> access.
-                </p>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -687,7 +712,7 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
                   <button 
                     onClick={handleSubmit}
                     disabled={isSubmitting}
-                    className="flex-[2] py-4 bg-[#FFD700] text-black rounded-2xl font-black uppercase tracking-widest text-[10px] hover:shadow-2xl hover:-translate-y-1 transition-all active:scale-95 disabled:opacity-50"
+                    className="flex-[2] py-4 bg-[#FFD700] text-black rounded-2xl font-black uppercase tracking-widest text-[10px] hover:shadow-2xl hover:-translate-y-1 transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-[#FFD700]/20 border-b-4 border-yellow-600"
                   >
                     {isSubmitting ? 'Processing...' : 'Join VIP Now'}
                   </button>
@@ -741,10 +766,11 @@ const Profile: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      const unsubscribe = vipService.onUserVIPRequestSnapshot(user.uid, (requests) => {
+      const fetchVIPRequests = async () => {
+        const requests = await vipService.getUserVIPRequests(user.uid);
         setVIPRequests(requests);
-      });
-      return () => unsubscribe();
+      };
+      fetchVIPRequests();
     }
   }, [user]);
 
@@ -786,37 +812,30 @@ const Profile: React.FC = () => {
     let toolOrdersUnsubscribe: (() => void) | null = null;
     let courseOrdersUnsubscribe: (() => void) | null = null;
 
-    const loadWalletData = () => {
+    const loadWalletData = async () => {
       if (user) {
-        if (transactionsUnsubscribe) transactionsUnsubscribe();
-        transactionsUnsubscribe = walletService.onTransactionsSnapshot(user.uid, (txs) => {
-          setTransactions(txs);
-        });
+        const [
+          txs,
+          reqs,
+          users,
+          withs,
+          tOrders,
+          cOrders
+        ] = await Promise.all([
+          walletService.getTransactions(user.uid),
+          walletService.getUserDepositRequests(user.uid),
+          userService.getReferredUsers(user.uid),
+          walletService.getUserWithdrawals(user.uid),
+          walletService.getUserToolOrders(user.uid),
+          walletService.getUserCourseOrders(user.uid)
+        ]);
 
-        if (depositRequestsUnsubscribe) depositRequestsUnsubscribe();
-        depositRequestsUnsubscribe = walletService.onUserDepositRequestsSnapshot(user.uid, (reqs) => {
-          setDepositRequests(reqs);
-        });
-
-        if (referredUsersUnsubscribe) referredUsersUnsubscribe();
-        referredUsersUnsubscribe = userService.onReferredUsersSnapshot(user.uid, (users) => {
-          setReferredUsers(users);
-        });
-
-        if (withdrawalsUnsubscribe) withdrawalsUnsubscribe();
-        withdrawalsUnsubscribe = walletService.onWithdrawalsSnapshot(user.uid, (reqs) => {
-          setWithdrawalRequests(reqs);
-        });
-
-        if (toolOrdersUnsubscribe) toolOrdersUnsubscribe();
-        toolOrdersUnsubscribe = walletService.onUserToolOrdersSnapshot(user.uid, (orders) => {
-          setToolOrders(orders);
-        });
-
-        if (courseOrdersUnsubscribe) courseOrdersUnsubscribe();
-        courseOrdersUnsubscribe = walletService.onUserCourseOrdersSnapshot(user.uid, (orders) => {
-          setCourseOrders(orders);
-        });
+        setTransactions(txs);
+        setDepositRequests(reqs);
+        setReferredUsers(users);
+        setWithdrawalRequests(withs);
+        setToolOrders(tOrders);
+        setCourseOrders(cOrders);
       }
     };
 
@@ -910,37 +929,58 @@ const Profile: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
-          <Link to="/" className="no-underline">
-            <Logo size="md" />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link 
-              to="/tools" 
-              className="bg-[#FFD700] text-black px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all active:scale-95 no-underline"
-            >
-              Buy Tools
+    <div className="min-h-screen bg-slate-50">
+      {/* Mobile Header - Standard Style */}
+      <header className="md:hidden sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Link to="/tools" className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
             </Link>
-            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-slate-100">
-              <Wallet className="w-4 h-4 text-[#FF6B35]" />
-              <span className="text-sm font-black text-slate-900">${(profile.walletBalance || 0).toLocaleString()}</span>
-            </div>
-            <Link to="/" className="relative p-2 text-slate-600 hover:text-[#FF6B35] transition-colors">
-              <ShoppingCart className="w-6 h-6" />
-              {cartCount >= 0 && (
-                <span className="absolute top-0 right-0 bg-[#FF6B35] text-black text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
-            <Link to="/" className="inline-flex items-center text-slate-600 hover:text-[#FF6B35] transition-colors">
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              <span className="text-sm font-medium">Back to Marketplace</span>
+            <Link to="/" className="no-underline">
+              <Logo size="md" />
             </Link>
           </div>
+          <button 
+            onClick={() => window.dispatchEvent(new Event('open-cart'))}
+            className="relative p-2 text-slate-600 hover:text-[#FF6B35] transition-colors"
+          >
+            <ShoppingCart className="w-6 h-6" />
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-[#FF6B35] text-white text-[10px] font-black w-4 h-4 flex items-center justify-center rounded-full border border-white shadow-sm">
+                {cartCount}
+              </span>
+            )}
+          </button>
         </div>
+      </header>
+
+      <div className="py-8 md:py-12 px-4">
+        <div className="max-w-5xl mx-auto">
+          {/* Desktop Header - Card Style */}
+          <div className="hidden md:flex flex-row items-center justify-between mb-12 gap-8 bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100">
+            <Link to="/" className="no-underline">
+              <Logo size="lg" className="origin-center" />
+            </Link>
+            <div className="flex items-center gap-10">
+              <button 
+                onClick={() => window.dispatchEvent(new Event('open-cart'))}
+                className="relative p-3 text-slate-600 hover:text-[#FF6B35] transition-colors bg-slate-50 rounded-full"
+              >
+                <ShoppingCart className="w-7 h-7" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-[#FF6B35] text-white text-[12px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+              
+              <Link to="/tools" className="inline-flex items-center text-slate-600 hover:text-[#FF6B35] transition-colors no-underline group">
+                <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
+                <span className="text-base font-black uppercase tracking-[0.15em]">Back to Tools</span>
+              </Link>
+            </div>
+          </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar Navigation */}
@@ -1209,20 +1249,10 @@ const Profile: React.FC = () => {
                         </div>
                       </section>
 
-                      {/* Private Data Notice */}
-                      <section className="p-6 bg-amber-50 rounded-2xl border border-amber-100">
-                        <h3 className="text-amber-800 font-bold mb-2 flex items-center gap-2">
-                          <Shield className="w-4 h-4" />
-                          Private Account
-                        </h3>
-                        <p className="text-amber-700 text-sm leading-relaxed">
-                          Your account data is strictly private. Only you can access and modify your personal information. Other users cannot see your email or private details.
-                        </p>
-                      </section>
                     </div>
 
                       {/* VIP Membership Card */}
-                      <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
+                      <div className="mt-12 bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-[#FFD700]/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
                         <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full -ml-32 -mb-32 blur-3xl"></div>
                         
@@ -1529,7 +1559,10 @@ const Profile: React.FC = () => {
                         </div>
 
                         <button 
-                          onClick={() => setIsDepositModalOpen(true)}
+                          onClick={() => {
+                            console.log('Opening Deposit Modal');
+                            setIsDepositModalOpen(true);
+                          }}
                           className="mt-10 w-full py-5 bg-black text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-[10px] hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:-translate-y-1.5 transition-all active:scale-95 flex items-center justify-center gap-3 group/btn"
                         >
                           <DollarSign className="w-4 h-4 group-hover:rotate-12 transition-transform" />
@@ -1916,8 +1949,8 @@ const Profile: React.FC = () => {
                 >
                   <div className="bg-white rounded-3xl shadow-xl p-8">
                     <div className="flex items-center gap-4 mb-8">
-                      <div className="p-4 bg-green-50 rounded-2xl text-green-600">
-                        <MessageCircle className="w-8 h-8" />
+                      <div className="p-4 bg-sky-50 rounded-2xl text-sky-600">
+                        <Send className="w-8 h-8" />
                       </div>
                       <div>
                         <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Customer Support</h2>
@@ -1931,7 +1964,7 @@ const Profile: React.FC = () => {
                         <textarea 
                           value={supportMessage}
                           onChange={(e) => setSupportMessage(e.target.value)}
-                          className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-green-500 transition-all font-medium min-h-[200px] resize-none"
+                          className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-sky-500 transition-all font-medium min-h-[200px] resize-none"
                           placeholder="How can we help you today?"
                         />
                       </div>
@@ -1943,12 +1976,12 @@ const Profile: React.FC = () => {
                             return;
                           }
                           const encodedMessage = encodeURIComponent(`Support Request\n\nEmail: ${user?.email}\n\nProblem:\n${supportMessage}`);
-                          window.open(`https://wa.me/8801314493061?text=${encodedMessage}`, '_blank');
+                          window.open(`https://t.me/cheapshotadmin?text=${encodedMessage}`, '_blank');
                         }}
-                        className="w-full py-4 bg-[#25D366] text-white rounded-2xl font-black uppercase tracking-widest hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-3"
+                        className="w-full py-4 bg-[#0088cc] text-white rounded-2xl font-black uppercase tracking-widest hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-3"
                       >
-                        <MessageCircle className="w-6 h-6" />
-                        Send via WhatsApp
+                        <Send className="w-6 h-6" />
+                        Send via Telegram
                       </button>
                     </div>
                   </div>
@@ -1958,6 +1991,7 @@ const Profile: React.FC = () => {
           </div>
         </div>
       </div>
+    </div>
       <AnimatePresence>
         {selectedOrder && (
           <motion.div

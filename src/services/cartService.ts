@@ -1,6 +1,6 @@
 import { Course } from '../data/courses';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export interface CartItem {
   id: string | number;
@@ -22,9 +22,9 @@ export const cartService = {
     }
 
     if (userId) {
-      // Set up real-time sync with Firestore for logged-in users
+      // One-time fetch from Firestore for logged-in users
       const cartRef = doc(db, 'carts', userId);
-      unsubscribe = onSnapshot(cartRef, (docSnap) => {
+      getDoc(cartRef).then((docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           const items = data.items || [];
@@ -32,7 +32,7 @@ export const cartService = {
           localStorage.setItem(userKey, JSON.stringify(items));
           window.dispatchEvent(new Event('cart-updated'));
         }
-      }, (error) => {
+      }).catch((error) => {
         handleFirestoreError(error, OperationType.GET, `carts/${userId}`);
       });
     }

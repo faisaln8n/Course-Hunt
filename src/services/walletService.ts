@@ -4,7 +4,6 @@ import {
   updateDoc, 
   collection, 
   addDoc, 
-  onSnapshot,
   query, 
   where, 
   getDocs, 
@@ -105,37 +104,133 @@ export const walletService = {
     }
   },
 
-  onDepositRequestsSnapshot(callback: (requests: DepositRequest[]) => void): () => void {
+  async getDepositRequests(): Promise<DepositRequest[]> {
     const q = query(
       collection(db, 'deposit_requests'),
       orderBy('timestamp', 'desc')
     );
-    return onSnapshot(q, (snapshot) => {
-      const requests = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as DepositRequest[];
-      callback(requests);
-    }, (error) => {
-      console.error("Error fetching deposit requests:", error);
-    });
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as DepositRequest[];
   },
 
-  onUserDepositRequestsSnapshot(userId: string, callback: (requests: DepositRequest[]) => void): () => void {
+  async getAllWithdrawals(): Promise<WithdrawalRequest[]> {
+    const q = query(
+      collection(db, 'withdrawals'),
+      orderBy('timestamp', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as WithdrawalRequest[];
+  },
+
+  async getAllToolOrders(): Promise<ToolOrder[]> {
+    const q = query(
+      collection(db, 'tool_orders'),
+      orderBy('timestamp', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ToolOrder[];
+  },
+
+  async getAllCourseOrders(): Promise<CourseOrder[]> {
+    const q = query(
+      collection(db, 'course_orders'),
+      orderBy('timestamp', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as CourseOrder[];
+  },
+
+  async getAllTransactions(): Promise<(Transaction & { userEmail?: string })[]> {
+    const q = query(
+      collection(db, 'transactions'),
+      orderBy('timestamp', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    const transactions = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as (Transaction & { userEmail?: string })[];
+    
+    // Fetch user emails for each transaction (limited to first 100 to avoid excessive reads)
+    const topTransactions = transactions.slice(0, 100);
+    const userIds = [...new Set(topTransactions.map(t => t.userId))];
+    const userEmails: Record<string, string> = {};
+    
+    for (const userId of userIds) {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        userEmails[userId] = userDoc.data().email;
+      }
+    }
+    
+    return topTransactions.map(t => ({
+      ...t,
+      userEmail: userEmails[t.userId] || 'Unknown User'
+    }));
+  },
+
+  async getUserDepositRequests(userId: string): Promise<DepositRequest[]> {
     const q = query(
       collection(db, 'deposit_requests'),
       where('userId', '==', userId),
       orderBy('timestamp', 'desc')
     );
-    return onSnapshot(q, (snapshot) => {
-      const requests = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as DepositRequest[];
-      callback(requests);
-    }, (error) => {
-      console.error("Error fetching user deposit requests:", error);
-    });
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as DepositRequest[];
+  },
+
+  async getUserWithdrawals(userId: string): Promise<WithdrawalRequest[]> {
+    const q = query(
+      collection(db, 'withdrawals'),
+      where('userId', '==', userId),
+      orderBy('timestamp', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as WithdrawalRequest[];
+  },
+
+  async getUserToolOrders(userId: string): Promise<ToolOrder[]> {
+    const q = query(
+      collection(db, 'tool_orders'),
+      where('userId', '==', userId),
+      orderBy('timestamp', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ToolOrder[];
+  },
+
+  async getUserCourseOrders(userId: string): Promise<CourseOrder[]> {
+    const q = query(
+      collection(db, 'course_orders'),
+      where('userId', '==', userId),
+      orderBy('timestamp', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as CourseOrder[];
   },
 
   async updateDepositStatus(requestId: string, status: DepositRequest['status']): Promise<{ success: boolean; error?: string }> {
@@ -213,63 +308,6 @@ export const walletService = {
     });
     
     return transactions;
-  },
-
-  onTransactionsSnapshot(userId: string, callback: (transactions: Transaction[]) => void): () => void {
-    const q = query(
-      collection(db, 'transactions'),
-      where('userId', '==', userId)
-    );
-    return onSnapshot(q, (snapshot) => {
-      const transactions = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Transaction[];
-      
-      // Sort in memory to avoid composite index requirement
-      transactions.sort((a, b) => {
-        const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
-        const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
-        return timeB - timeA;
-      });
-      
-      callback(transactions);
-    }, (error) => {
-      console.error("Error fetching transactions:", error);
-    });
-  },
-
-  onAllTransactionsSnapshot(callback: (transactions: (Transaction & { userEmail?: string })[]) => void): () => void {
-    const q = query(
-      collection(db, 'transactions'),
-      orderBy('timestamp', 'desc')
-    );
-    return onSnapshot(q, async (snapshot) => {
-      const transactions = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as (Transaction & { userEmail?: string })[];
-      
-      // Fetch user emails for each transaction
-      const userIds = [...new Set(transactions.map(t => t.userId))];
-      const userEmails: Record<string, string> = {};
-      
-      for (const userId of userIds) {
-        const userDoc = await getDoc(doc(db, 'users', userId));
-        if (userDoc.exists()) {
-          userEmails[userId] = userDoc.data().email;
-        }
-      }
-      
-      const transactionsWithEmails = transactions.map(t => ({
-        ...t,
-        userEmail: userEmails[t.userId] || 'Unknown User'
-      }));
-      
-      callback(transactionsWithEmails);
-    }, (error) => {
-      console.error("Error fetching all transactions:", error);
-    });
   },
 
   async deductFunds(userId: string, amount: number, description: string): Promise<{ success: boolean; error?: string }> {
@@ -533,39 +571,6 @@ export const walletService = {
     }
   },
 
-  onWithdrawalsSnapshot(userId: string, callback: (requests: WithdrawalRequest[]) => void): () => void {
-    const q = query(
-      collection(db, 'withdrawals'),
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
-    );
-    return onSnapshot(q, (snapshot) => {
-      const requests = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as WithdrawalRequest[];
-      callback(requests);
-    }, (error) => {
-      console.error("Error fetching withdrawals:", error);
-    });
-  },
-
-  onAllWithdrawalsSnapshot(callback: (requests: WithdrawalRequest[]) => void): () => void {
-    const q = query(
-      collection(db, 'withdrawals'),
-      orderBy('timestamp', 'desc')
-    );
-    return onSnapshot(q, (snapshot) => {
-      const requests = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as WithdrawalRequest[];
-      callback(requests);
-    }, (error) => {
-      console.error("Error fetching all withdrawals:", error);
-    });
-  },
-
   async updateWithdrawalStatus(requestId: string, status: WithdrawalRequest['status']): Promise<{ success: boolean; error?: string }> {
     try {
       const requestRef = doc(db, 'withdrawals', requestId);
@@ -616,12 +621,12 @@ export const walletService = {
       if (currentBalance < amount) {
         throw new Error('Insufficient balance');
       }
-
+ 
       // Update user balance
       await updateDoc(userRef, {
         walletBalance: increment(-amount)
       });
-
+ 
       // Create tool order
       await addDoc(collection(db, 'tool_orders'), {
         userId,
@@ -632,7 +637,7 @@ export const walletService = {
         status: 'Ordered',
         timestamp: serverTimestamp()
       });
-
+ 
       // Record transaction
       await addDoc(collection(db, 'transactions'), {
         userId,
@@ -642,80 +647,14 @@ export const walletService = {
         description: `Ordered tool: ${toolTitle}`,
         timestamp: serverTimestamp()
       });
-
+ 
       return { success: true };
     } catch (error: any) {
       console.error('Error ordering tool:', error);
       return { success: false, error: error.message };
     }
   },
-
-  onUserToolOrdersSnapshot(userId: string, callback: (orders: ToolOrder[]) => void): () => void {
-    const q = query(
-      collection(db, 'tool_orders'),
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
-    );
-    return onSnapshot(q, (snapshot) => {
-      const orders = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ToolOrder[];
-      callback(orders);
-    }, (error) => {
-      console.error("Error fetching user tool orders:", error);
-    });
-  },
-
-  onUserCourseOrdersSnapshot(userId: string, callback: (orders: CourseOrder[]) => void): () => void {
-    const q = query(
-      collection(db, 'course_orders'),
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
-    );
-    return onSnapshot(q, (snapshot) => {
-      const orders = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as CourseOrder[];
-      callback(orders);
-    }, (error) => {
-      console.error("Error fetching user course orders:", error);
-    });
-  },
-
-  onAllCourseOrdersSnapshot(callback: (orders: CourseOrder[]) => void): () => void {
-    const q = query(
-      collection(db, 'course_orders'),
-      orderBy('timestamp', 'desc')
-    );
-    return onSnapshot(q, (snapshot) => {
-      const orders = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as CourseOrder[];
-      callback(orders);
-    }, (error) => {
-      console.error("Error fetching all course orders:", error);
-    });
-  },
-
-  onAllToolOrdersSnapshot(callback: (orders: ToolOrder[]) => void): () => void {
-    const q = query(
-      collection(db, 'tool_orders'),
-      orderBy('timestamp', 'desc')
-    );
-    return onSnapshot(q, (snapshot) => {
-      const orders = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ToolOrder[];
-      callback(orders);
-    }, (error) => {
-      console.error("Error fetching all tool orders:", error);
-    });
-  },
-
+ 
   async updateToolOrderStatus(orderId: string, status: ToolOrder['status'], accountInfo?: string): Promise<{ success: boolean; error?: string }> {
     try {
       const orderRef = doc(db, 'tool_orders', orderId);

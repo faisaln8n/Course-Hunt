@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Info, Target, CheckCircle2, ShoppingCart, Plus, Check, X, Tag, Trash2, Star, Camera, MessageSquare, Send, User, LogOut, Heart, Megaphone, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Info, Target, CheckCircle2, ShoppingCart, Plus, Check, X, Tag, Trash2, Star, Camera, MessageSquare, Send, User, LogOut, Heart, Megaphone, ChevronRight, ChevronDown } from 'lucide-react';
 import { courseService } from './services/courseService';
 import { Course, Review } from './data/courses';
 import { cartService } from './services/cartService';
@@ -421,14 +421,19 @@ export default function CourseDetail() {
           <Link to="/" className="no-underline">
             <Logo size="md" />
           </Link>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 md:gap-6">
             <Link 
               to="/tools" 
-              className="bg-[#FFD700] text-black px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all active:scale-95 no-underline"
+              className="hidden md:flex items-center bg-[#7C3AED] text-white rounded-lg md:rounded-xl text-[10px] md:text-sm font-bold shadow-lg hover:bg-[#6D28D9] transition-all active:scale-95 no-underline overflow-hidden group"
             >
-              Buy Tools
+              <div className="flex items-center gap-1.5 md:gap-2 px-2.5 py-1.5 md:px-4 md:py-2">
+                <div className="bg-white/20 p-0.5 md:p-1 rounded-md group-hover:bg-white/30 transition-colors">
+                  <Plus className="w-3 md:w-3.5 h-3 md:h-3.5 text-white" />
+                </div>
+                <span className="uppercase tracking-wider">Buy Tools</span>
+              </div>
             </Link>
-            <Link to="/about" className="text-gray-600 hover:text-gray-900 font-medium text-sm" style={{ textDecoration: 'none' }}>
+            <Link to="/about" className="hidden md:block text-gray-600 hover:text-gray-900 font-medium text-sm" style={{ textDecoration: 'none' }}>
               About
             </Link>
             <div 

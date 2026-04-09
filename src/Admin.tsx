@@ -38,7 +38,8 @@ import {
   Target,
   Wallet,
   Wrench,
-  ShoppingCart
+  ShoppingCart,
+  Link as LinkIcon
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
@@ -104,6 +105,16 @@ export default function AdminDashboard() {
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
+  const handleFirebaseSignIn = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      toast.success('Signed in with Google successfully');
+    } catch (error: any) {
+      console.error('Firebase Sign In Error:', error);
+      toast.error('Failed to sign in with Google: ' + error.message);
+    }
+  };
+
   // Users State
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
@@ -167,46 +178,40 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!currentUser) return;
-    const unsubscribeTx = walletService.onAllTransactionsSnapshot((transactions) => {
+    
+    const loadAdminData = async () => {
+      const [
+        transactions,
+        depRequests,
+        withRequests,
+        tOrders,
+        cOrders,
+        vRequests,
+        allUsers,
+        clicks,
+        lUsersCount,
+        lUsers
+      ] = await Promise.all([
+        walletService.getAllTransactions(),
+        walletService.getDepositRequests(),
+        walletService.getAllWithdrawals(),
+        walletService.getAllToolOrders(),
+        walletService.getAllCourseOrders(),
+        vipService.getAllVIPRequests(),
+        userService.getAllUsers(),
+        analyticsService.getClicks(),
+        presenceService.getLiveUsersCount(),
+        presenceService.getLiveUsers()
+      ]);
+
       setAllTransactions(transactions);
-    });
-    const unsubscribeReqs = walletService.onDepositRequestsSnapshot((requests) => {
-      setDepositRequests(requests);
-    });
-    const unsubscribeWithdrawals = walletService.onAllWithdrawalsSnapshot((requests) => {
-      setWithdrawalRequests(requests);
-    });
-    const unsubscribeToolOrders = walletService.onAllToolOrdersSnapshot((orders) => {
-      setToolOrders(orders);
-    });
-    const unsubscribeCourseOrders = walletService.onAllCourseOrdersSnapshot((orders) => {
-      setCourseOrders(orders);
-    });
-    const unsubscribeVIPRequests = vipService.onAllVIPRequestsSnapshot((requests) => {
-      setVIPRequests(requests);
-    });
-    return () => {
-      unsubscribeTx();
-      unsubscribeReqs();
-      unsubscribeWithdrawals();
-      unsubscribeToolOrders();
-      unsubscribeCourseOrders();
-      unsubscribeVIPRequests();
-    };
-  }, [currentUser]);
-
-  const handleFirebaseSignIn = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-      toast.success('Authenticated with Firebase successfully');
-    } catch (error) {
-      console.error('Firebase sign in error:', error);
-      toast.error('Failed to authenticate with Firebase');
-    }
-  };
-
-  useEffect(() => {
-    const unsubscribeClicks = analyticsService.onClicksSnapshot((clicks) => {
+      setDepositRequests(depRequests);
+      setWithdrawalRequests(withRequests);
+      setToolOrders(tOrders);
+      setCourseOrders(cOrders);
+      setVIPRequests(vRequests);
+      setUsers(allUsers);
+      
       // Process clicks for chart
       const data: Record<string, number> = {};
       const now = new Date();
@@ -260,31 +265,22 @@ export default function AdminDashboard() {
       setTrafficSourceStats(Object.entries(sourceCounts)
         .map(([source, count]) => ({ source, count }))
         .sort((a, b) => b.count - a.count));
-    });
 
-    const unsubscribePresence = presenceService.onLiveUsersCount((count) => {
-      setLiveUsersCount(count);
-    });
-
-    const unsubscribeLiveUsers = presenceService.onLiveUsersSnapshot((users) => {
-      setLiveUsers(users);
-    });
-
-    return () => {
-      unsubscribeClicks();
-      unsubscribePresence();
-      unsubscribeLiveUsers();
+      setLiveUsersCount(lUsersCount);
+      setLiveUsers(lUsers);
     };
-  }, [timeframe, selectedCourseId, courses]);
 
-  useEffect(() => {
-    const unsubscribe = userService.onAllUsersSnapshot((allUsers) => {
-      setUsers(allUsers);
-    }, (error) => {
-      toast.error('Failed to load users: ' + (error instanceof Error ? error.message : 'Unknown error'));
-    });
-    return () => unsubscribe();
-  }, []);
+    loadAdminData();
+    
+    // Refresh every 5 minutes if tab is active
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadAdminData();
+      }
+    }, 300000);
+
+    return () => clearInterval(interval);
+  }, [currentUser, timeframe, selectedCourseId, courses]);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -1943,7 +1939,7 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <Link className="h-4 w-4" />
+                <LinkIcon className="h-4 w-4" />
                 Announcement Link (Optional)
               </label>
               <input 
@@ -2866,98 +2862,108 @@ export default function AdminDashboard() {
           <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Admin Panel</p>
         </div>
 
-        <nav className="mt-4 px-4">
+        <nav className="mt-8 px-4 space-y-8">
+          {/* Group 1: Overview & System */}
           <div className="space-y-1">
+            <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">System Control</p>
             <button 
               onClick={() => setActiveTab('dashboard')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'dashboard' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'dashboard' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' : 'text-slate-600 hover:bg-slate-50'}`}
             >
               <LayoutDashboard className="h-4 w-4" />
               Dashboard
             </button>
             <button 
+              onClick={() => setActiveTab('settings')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'settings' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </button>
+          </div>
+
+          {/* Group 2: Resources & Users */}
+          <div className="space-y-1">
+            <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-widest text-blue-500">Inventory & Users</p>
+            <button 
               onClick={() => setActiveTab('courses')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'courses' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'courses' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'}`}
             >
               <List className="h-4 w-4" />
               Courses
             </button>
             <button 
-              onClick={() => setActiveTab('course-orders')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'course-orders' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
-            >
-              <BookOpen className="h-4 w-4" />
-              Course Orders
-            </button>
-            <button 
               onClick={() => setActiveTab('tools')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'tools' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'tools' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'}`}
             >
               <Wrench className="h-4 w-4" />
               Tools
             </button>
             <button 
+              onClick={() => setActiveTab('users')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'users' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'}`}
+            >
+              <Users className="h-4 w-4" />
+              Users
+            </button>
+            <button 
+              onClick={() => setActiveTab('traffic')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'traffic' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'}`}
+            >
+              <Activity className="h-4 w-4" />
+              Live Traffic
+            </button>
+          </div>
+
+          {/* Group 3: Operations */}
+          <div className="space-y-1">
+            <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-widest text-purple-500">Order Management</p>
+            <button 
               onClick={() => setActiveTab('course-orders')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'course-orders' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'course-orders' ? 'bg-purple-600 text-white shadow-lg shadow-purple-100' : 'text-slate-600 hover:bg-purple-50/50 hover:text-purple-600'}`}
             >
               <BookOpen className="h-4 w-4" />
               Course Orders
             </button>
             <button 
               onClick={() => setActiveTab('tool-orders')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'tool-orders' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'tool-orders' ? 'bg-purple-600 text-white shadow-lg shadow-purple-100' : 'text-slate-600 hover:bg-purple-50/50 hover:text-purple-600'}`}
             >
               <ShoppingCart className="h-4 w-4" />
               Tool Orders
             </button>
             <button 
-              onClick={() => setActiveTab('users')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+              onClick={() => setActiveTab('vip')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'vip' ? 'bg-purple-600 text-white shadow-lg shadow-purple-100' : 'text-slate-600 hover:bg-purple-50/50 hover:text-purple-600'}`}
             >
-              <Users className="h-4 w-4" />
-              Users
+              <StarIcon className="h-4 w-4" />
+              VIP Management
             </button>
-            <button 
-              onClick={() => setActiveTab('wallet')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'wallet' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
-            >
-              <Wallet className="h-4 w-4" />
-              Wallet
-            </button>
+          </div>
+
+          {/* Group 4: Finance */}
+          <div className="space-y-1">
+            <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-widest text-emerald-500">Financial Records</p>
             <button 
               onClick={() => setActiveTab('payments')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'payments' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'payments' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'text-slate-600 hover:bg-emerald-50/50 hover:text-emerald-600'}`}
             >
               <ShieldCheck className="h-4 w-4" />
               Payment Proofs
             </button>
             <button 
               onClick={() => setActiveTab('withdrawals')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'withdrawals' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'withdrawals' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'text-slate-600 hover:bg-emerald-50/50 hover:text-emerald-600'}`}
             >
               <DollarSign className="h-4 w-4" />
               Withdrawals
             </button>
             <button 
-              onClick={() => setActiveTab('traffic')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'traffic' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
+              onClick={() => setActiveTab('wallet')}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold transition-all ${activeTab === 'wallet' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'text-slate-600 hover:bg-emerald-50/50 hover:text-emerald-600'}`}
             >
-              <Activity className="h-4 w-4" />
-              Live Traffic
-            </button>
-            <button 
-              onClick={() => setActiveTab('vip')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'vip' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
-            >
-              <StarIcon className="h-4 w-4" />
-              VIP Management
-            </button>
-            <button 
-              onClick={() => setActiveTab('settings')}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-[#4D00FF]/10 text-[#4D00FF]' : 'text-slate-600 hover:bg-slate-50'}`}
-            >
-              <Settings className="h-4 w-4" />
-              Settings
+              <Wallet className="h-4 w-4" />
+              Wallet
             </button>
           </div>
         </nav>

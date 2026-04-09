@@ -166,7 +166,10 @@ service cloud.firestore {
              (!('affiliateBalance' in data) || data.affiliateBalance is number) &&
              (!('referralCode' in data) || (data.referralCode is string && data.referralCode.size() < 50)) &&
              (!('referredBy' in data) || (data.referredBy is string || data.referredBy == null)) &&
-             (!('purchasedCourses' in data) || data.purchasedCourses is list);
+             (!('purchasedCourses' in data) || data.purchasedCourses is list) &&
+             (!('vipStatus' in data) || data.vipStatus in ['none', 'pending', 'active']) &&
+             (!('vipExpiryDate' in data) || (data.vipExpiryDate is string && data.vipExpiryDate.size() < 100)) &&
+             (!('vipJoinDate' in data) || (data.vipJoinDate is string && data.vipJoinDate.size() < 100));
     }
 
     function isValidWithdrawalRequest(data) {
@@ -182,8 +185,9 @@ service cloud.firestore {
     function isValidTransaction(data) {
       return data.userId is string &&
              data.amount is number &&
-             data.type in ['deposit', 'purchase', 'commission', 'withdrawal', 'refund'] &&
+             data.type in ['deposit', 'purchase', 'commission', 'withdrawal', 'refund', 'vip_join'] &&
              (!('description' in data) || (data.description is string && data.description.size() < 500)) &&
+             (!('productName' in data) || (data.productName is string && data.productName.size() < 200)) &&
              data.timestamp is timestamp;
     }
 
@@ -217,9 +221,21 @@ service cloud.firestore {
              data.method in ['bKash', 'Binance'] &&
              (!('transactionId' in data) || (data.transactionId is string && data.transactionId.size() < 100)) &&
              (!('binanceUid' in data) || (data.binanceUid is string && data.binanceUid.size() < 100)) &&
-             data.screenshotUrl is string && data.screenshotUrl.size() < 1000000 &&
+             data.screenshotUrl is string && data.screenshotUrl.size() < 2000000 &&
              data.status in ['Pending', 'Paid', 'Rejected', 'Declined'] &&
              data.timestamp is timestamp;
+    }
+
+    function isValidVIPRequest(data) {
+      return data.userId is string &&
+             data.userEmail is string && isValidEmail(data.userEmail) &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() < 200 &&
+             data.telegramUsername is string && data.telegramUsername.size() > 0 && data.telegramUsername.size() < 100 &&
+             data.whatsappNumber is string && data.whatsappNumber.size() > 0 && data.whatsappNumber.size() < 50 &&
+             data.amount is number && data.amount > 0 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
     }
 
     function isValidTool(data) {
@@ -329,6 +345,13 @@ service cloud.firestore {
       allow read: if isAdmin() || (isAuthenticated() && isOwner(resource.data.userId));
       allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
       allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /vip_requests/{requestId} {
+      allow read: if isAdmin() || (isAuthenticated() && isOwner(resource.data.userId));
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidVIPRequest(request.resource.data) && request.resource.data.status == 'pending';
+      allow update: if isAdmin() && isValidVIPRequest(request.resource.data);
       allow delete: if false;
     }
   }

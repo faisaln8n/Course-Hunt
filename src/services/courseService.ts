@@ -6,7 +6,6 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  onSnapshot, 
   query, 
   orderBy,
   Timestamp,
@@ -202,40 +201,5 @@ export const courseService = {
     } catch (error) {
       console.error("Error updating course stats:", error);
     }
-  },
-
-  subscribeToCourses(callback: (courses: Course[]) => void) {
-    const q = query(collection(db, COURSES_COLLECTION), orderBy('title', 'asc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const courses = snapshot.docs
-        .map(doc => ({
-          ...doc.data() as any,
-          id: doc.id
-        }))
-        .filter(course => course.title && course.image) as unknown as Course[];
-      callback(courses);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, COURSES_COLLECTION);
-    });
-
-    return unsubscribe;
-  },
-
-  subscribeToAllCoursesRaw(callback: (courses: Course[]) => void) {
-    const q = query(collection(db, COURSES_COLLECTION), orderBy('title', 'asc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const courses = snapshot.docs
-        .map(doc => ({
-          ...doc.data() as any,
-          id: doc.id
-        })) as unknown as Course[];
-      callback(courses);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, COURSES_COLLECTION);
-    });
-
-    return unsubscribe;
   }
 };

@@ -76,11 +76,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await userService.updateUserProfile(firebaseUser.uid, updates);
           }
 
-          // Set up real-time listener for the profile
-          profileUnsubscribe = userService.onUserProfileSnapshot(firebaseUser.uid, (updatedProfile) => {
-            setProfile(updatedProfile);
-            setLoading(false);
-          });
+          // Fetch initial profile
+          const userProfileData = await userService.getUserProfile(firebaseUser.uid);
+          setProfile(userProfileData);
+          setLoading(false);
 
         } catch (error) {
           console.error("Error handling user profile:", error);
@@ -95,7 +94,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       unsubscribe();
-      if (profileUnsubscribe) profileUnsubscribe();
     };
   }, []);
 

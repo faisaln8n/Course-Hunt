@@ -4,7 +4,6 @@ import {
   setDoc, 
   serverTimestamp, 
   collection, 
-  onSnapshot, 
   query, 
   where, 
   Timestamp,
@@ -13,8 +12,8 @@ import {
 } from 'firebase/firestore';
 
 const PRESENCE_COLLECTION = 'presence';
-const HEARTBEAT_INTERVAL = 30000; // 30 seconds
-const ONLINE_THRESHOLD = 60000; // 1 minute
+const HEARTBEAT_INTERVAL = 60000; // 60 seconds
+const ONLINE_THRESHOLD = 120000; // 2 minutes
 
 export const presenceService = {
   privateHeartbeatInterval: null as any,
@@ -74,32 +73,30 @@ export const presenceService = {
     }
   },
 
-  onLiveUsersCount(callback: (count: number) => void): () => void {
-    return onSnapshot(collection(db, PRESENCE_COLLECTION), (snapshot) => {
-      const now = Date.now();
-      const onlineUsers = snapshot.docs.filter(doc => {
-        const data = doc.data();
-        if (!data.lastSeen) return false;
-        const lastSeen = (data.lastSeen as Timestamp).toMillis();
-        return now - lastSeen < ONLINE_THRESHOLD;
-      });
-      callback(onlineUsers.length);
+  async getLiveUsersCount(): Promise<number> {
+    const snapshot = await getDocs(collection(db, PRESENCE_COLLECTION));
+    const now = Date.now();
+    const onlineUsers = snapshot.docs.filter(doc => {
+      const data = doc.data();
+      if (!data.lastSeen) return false;
+      const lastSeen = (data.lastSeen as Timestamp).toMillis();
+      return now - lastSeen < ONLINE_THRESHOLD;
     });
+    return onlineUsers.length;
   },
 
-  onLiveUsersSnapshot(callback: (users: any[]) => void): () => void {
-    return onSnapshot(collection(db, PRESENCE_COLLECTION), (snapshot) => {
-      const now = Date.now();
-      const onlineUsers = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter((user: any) => {
-          if (!user.lastSeen) return false;
-          const lastSeen = (user.lastSeen as Timestamp).toMillis();
-          return now - lastSeen < ONLINE_THRESHOLD;
-        })
-        .sort((a: any, b: any) => (b.lastSeen as Timestamp).toMillis() - (a.lastSeen as Timestamp).toMillis());
-      callback(onlineUsers);
-    });
+  async getLiveUsers(): Promise<any[]> {
+    const snapshot = await getDocs(collection(db, PRESENCE_COLLECTION));
+    const now = Date.now();
+    const onlineUsers = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter((user: any) => {
+        if (!user.lastSeen) return false;
+        const lastSeen = (user.lastSeen as Timestamp).toMillis();
+        return now - lastSeen < ONLINE_THRESHOLD;
+      })
+      .sort((a: any, b: any) => (b.lastSeen as Timestamp).toMillis() - (a.lastSeen as Timestamp).toMillis());
+    return onlineUsers;
   },
 
   // Cleanup old presence documents (optional, can be done by admin or cloud function)

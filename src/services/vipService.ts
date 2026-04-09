@@ -5,7 +5,6 @@ import {
   doc, 
   addDoc, 
   updateDoc, 
-  onSnapshot, 
   query, 
   orderBy,
   serverTimestamp,
@@ -132,33 +131,25 @@ export const vipService = {
     }
   },
 
-  onAllVIPRequestsSnapshot(callback: (requests: VIPRequest[]) => void) {
+  async getAllVIPRequests(): Promise<VIPRequest[]> {
     const q = query(collection(db, VIP_REQUESTS_COLLECTION), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snapshot) => {
-      const requests = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as VIPRequest[];
-      callback(requests);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, VIP_REQUESTS_COLLECTION);
-    });
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id
+    })) as VIPRequest[];
   },
 
-  onUserVIPRequestSnapshot(userId: string, callback: (requests: VIPRequest[]) => void) {
+  async getUserVIPRequests(userId: string): Promise<VIPRequest[]> {
     const q = query(
-      collection(db, VIP_REQUESTS_COLLECTION), 
+      collection(db, VIP_REQUESTS_COLLECTION),
       where('userId', '==', userId),
       orderBy('createdAt', 'desc')
     );
-    return onSnapshot(q, (snapshot) => {
-      const requests = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as VIPRequest[];
-      callback(requests);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, VIP_REQUESTS_COLLECTION);
-    });
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id
+    })) as VIPRequest[];
   }
 };

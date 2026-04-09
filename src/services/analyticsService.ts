@@ -5,8 +5,7 @@ import {
   query, 
   orderBy,
   serverTimestamp,
-  Timestamp,
-  onSnapshot
+  Timestamp
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../firebase';
 
@@ -60,14 +59,10 @@ export const analyticsService = {
     }
   },
 
-  onClicksSnapshot(callback: (clicks: any[]) => void): () => void {
+  async getClicks(): Promise<any[]> {
     const q = query(collection(db, CLICKS_COLLECTION), orderBy('timestamp', 'desc'));
-    return onSnapshot(q, (snapshot) => {
-      const clicks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(clicks);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, CLICKS_COLLECTION);
-    });
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
 
   async getClickDataForChart(days: number = 7, courseId?: string | number) {
