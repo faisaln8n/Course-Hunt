@@ -29,6 +29,7 @@ import { Review } from './data/courses';
 import { cartService } from './services/cartService';
 import { wishlistService } from './services/wishlistService';
 import { useUserAuth } from './components/AuthContext';
+import { useCurrency } from './components/CurrencyContext';
 import { toast, Toaster } from 'sonner';
 import Logo from './components/ui/Logo';
 import CartDrawer from './components/CartDrawer';
@@ -37,6 +38,7 @@ const ToolDetail: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { user } = useUserAuth();
+  const { formatPrice } = useCurrency();
   const [tool, setTool] = useState<Tool | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,8 +56,8 @@ const ToolDetail: React.FC = () => {
   useEffect(() => {
     const fetchToolAndReviews = async () => {
       if (!slug) return;
-      // slug is the ID in this case
-      const found = await toolService.getToolById(slug);
+      const tools = await toolService.getTools();
+      const found = tools.find(t => String(t.id) === slug);
       if (found) {
         setTool(found);
         analyticsService.recordClick(found.id, 'tool');
@@ -267,9 +269,9 @@ const ToolDetail: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="text-2xl font-black text-[#E84C3D]">${tool.price} USD</span>
+                <span className="text-2xl font-black text-[#E84C3D]">{formatPrice(tool.price)}</span>
                 {tool.originalPrice > tool.price && (
-                  <span className="text-lg text-slate-400 line-through font-bold">${tool.originalPrice} USD</span>
+                  <span className="text-lg text-slate-400 line-through font-bold">{formatPrice(tool.originalPrice)}</span>
                 )}
                 <span className="bg-[#E84C3D] text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest flex items-center gap-1">
                   <Tag className="w-3 h-3" />
@@ -336,8 +338,8 @@ const ToolDetail: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-base font-black text-slate-900">${bundle.price}</div>
-                        <div className="text-[10px] font-bold text-slate-400 line-through">${bundle.original}</div>
+                        <div className="text-base font-black text-slate-900">{formatPrice(bundle.price)}</div>
+                        <div className="text-[10px] font-bold text-slate-400 line-through">{formatPrice(bundle.original)}</div>
                       </div>
                     </div>
                   </div>

@@ -12,12 +12,12 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { cache } from '../lib/cache';
 
 const SETTINGS_COLLECTION = 'settings';
 const APP_SETTINGS_DOC = 'app';
-const CACHE_KEY_SETTINGS = 'cached_app_settings';
-const CACHE_TTL = 15 * 60 * 1000; // 15 minutes for settings
+const ANNOUNCEMENTS_DOC = 'announcements';
+const CATEGORIES_DOC = 'categories';
+const COUPONS_COLLECTION = 'coupons';
 
 export interface Coupon {
   code: string;
@@ -35,6 +35,12 @@ export interface DepositCoupon {
   expiryDate?: string;
 }
 
+export interface CurrencyRates {
+  INR: number;
+  PKR: number;
+  BDT: number;
+}
+
 export interface AppSettings {
   announcement: string;
   announcementLink?: string;
@@ -45,6 +51,7 @@ export interface AppSettings {
   toolCoupons?: Coupon[];
   vipCoupons?: Coupon[];
   featuredToolIds?: string[];
+  currencyRates?: CurrencyRates;
 }
 
 export const settingsService = {
@@ -57,28 +64,22 @@ export const settingsService = {
       coupons: [],
       depositCoupons: [],
       toolCoupons: [],
-      vipCoupons: []
+      vipCoupons: [],
+      currencyRates: {
+        INR: 83.5,
+        PKR: 278.5,
+        BDT: 110.2
+      }
     };
   },
 
-  /**
-   * Fetches app settings with caching.
-   * Settings are global and change infrequently, making them ideal for caching.
-   */
   async getSettings(): Promise<AppSettings> {
-    // 1. Check cache first
-    const cached = cache.get<AppSettings>(CACHE_KEY_SETTINGS);
-    if (cached) {
-      console.log('Serving settings from cache');
-      return cached;
-    }
-
     try {
       const docRef = doc(db, SETTINGS_COLLECTION, APP_SETTINGS_DOC);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const settings = {
+        return {
           announcement: data.announcement || '',
           announcementLink: data.announcementLink || '',
           announcementCountdown: data.announcementCountdown || '',
@@ -87,12 +88,9 @@ export const settingsService = {
           depositCoupons: data.depositCoupons || [],
           toolCoupons: data.toolCoupons || [],
           vipCoupons: data.vipCoupons || [],
-          featuredToolIds: data.featuredToolIds || []
+          featuredToolIds: data.featuredToolIds || [],
+          currencyRates: data.currencyRates || this.getDefaultSettings().currencyRates
         };
-        
-        // 2. Cache the settings
-        cache.set(CACHE_KEY_SETTINGS, settings, CACHE_TTL);
-        return settings;
       }
       return this.getDefaultSettings();
     } catch (error) {
@@ -112,10 +110,6 @@ export const settingsService = {
         ...sanitizedSettings,
         updatedAt: serverTimestamp()
       });
-      
-      // 3. Invalidate cache on update
-      cache.remove(CACHE_KEY_SETTINGS);
-      
       window.dispatchEvent(new Event('settings-updated'));
       return { error: null };
     } catch (error) {

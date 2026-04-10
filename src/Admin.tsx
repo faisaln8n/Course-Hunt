@@ -307,13 +307,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      const [fetchedCourses, fetchedToolsResult, fetchedSettings] = await Promise.all([
+      const [fetchedCourses, fetchedTools, fetchedSettings] = await Promise.all([
         courseService.getAllCoursesRaw(),
         toolService.getTools(),
         settingsService.getSettings()
       ]);
       setCourses(fetchedCourses);
-      setTools(fetchedToolsResult.tools);
+      setTools(fetchedTools);
       setSettings(fetchedSettings);
     };
 
@@ -2061,6 +2061,81 @@ export default function AdminDashboard() {
 
   const renderSettings = () => (
     <div className="max-w-4xl space-y-8">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="rounded-lg bg-green-50 p-2">
+            <DollarSign className="h-5 w-5 text-green-600" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Currency Rate Management</h2>
+        </div>
+
+        <div className="space-y-6">
+          <p className="text-sm font-medium text-slate-500">Set the exchange rate for every 1 USD.</p>
+          
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-slate-400">1 USD to INR</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">₹</span>
+                <input 
+                  type="number"
+                  step="0.01"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-bold focus:border-green-500 focus:bg-white focus:outline-none"
+                  value={settings.currencyRates?.INR || 0}
+                  onChange={(e) => setSettings({ 
+                    ...settings, 
+                    currencyRates: { ...settings.currencyRates!, INR: parseFloat(e.target.value) || 0 } 
+                  })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-slate-400">1 USD to PKR</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">Rs</span>
+                <input 
+                  type="number"
+                  step="0.01"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm font-bold focus:border-green-500 focus:bg-white focus:outline-none"
+                  value={settings.currencyRates?.PKR || 0}
+                  onChange={(e) => setSettings({ 
+                    ...settings, 
+                    currencyRates: { ...settings.currencyRates!, PKR: parseFloat(e.target.value) || 0 } 
+                  })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-slate-400">1 USD to BDT</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">৳</span>
+                <input 
+                  type="number"
+                  step="0.01"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-bold focus:border-green-500 focus:bg-white focus:outline-none"
+                  value={settings.currencyRates?.BDT || 0}
+                  onChange={(e) => setSettings({ 
+                    ...settings, 
+                    currencyRates: { ...settings.currencyRates!, BDT: parseFloat(e.target.value) || 0 } 
+                  })}
+                />
+              </div>
+            </div>
+          </div>
+
+          <button 
+            onClick={async () => {
+              await settingsService.updateSettings(settings);
+              toast.success('Currency rates updated successfully');
+            }}
+            className="flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-green-700 active:scale-95"
+          >
+            <Save className="h-4 w-4" />
+            Save Rates
+          </button>
+        </div>
+      </div>
+
       <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="rounded-lg bg-blue-50 p-2">

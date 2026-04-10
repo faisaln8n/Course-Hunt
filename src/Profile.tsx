@@ -15,6 +15,7 @@ import { Tool } from './data/tools';
 import { UserProfile } from './services/userService';
 import { vipService, VIPRequest } from './services/vipService';
 import { settingsService } from './services/settingsService';
+import { useCurrency } from './components/CurrencyContext';
 import { toast } from 'sonner';
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
@@ -23,6 +24,7 @@ function cn(...classes: (string | undefined | null | boolean)[]): string {
 import { AnimatePresence } from 'framer-motion';
 
 const WithdrawalModal = ({ isOpen, onClose, userId, userEmail, balance }: { isOpen: boolean, onClose: () => void, userId: string, userEmail: string, balance: number }) => {
+  const { formatPrice } = useCurrency();
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<'bKash' | 'Binance'>('bKash');
   const [details, setDetails] = useState('');
@@ -80,7 +82,7 @@ const WithdrawalModal = ({ isOpen, onClose, userId, userEmail, balance }: { isOp
           <div className="space-y-6">
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
               <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Available Affiliate Balance</p>
-              <p className="text-2xl font-black text-[#FF6B35]">${balance.toLocaleString()}</p>
+              <p className="text-2xl font-black text-[#FF6B35]">{formatPrice(balance)}</p>
             </div>
 
             <div>
@@ -485,6 +487,7 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
 };
 
 const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose: () => void, user: any, profile: UserProfile }) => {
+  const { formatPrice } = useCurrency();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -621,7 +624,7 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
           <div className="relative z-10 mt-12 p-6 bg-white/10 rounded-3xl border-2 border-[#FFD700]/30 backdrop-blur-md shadow-xl">
             <p className="text-xs font-black text-[#FFD700] uppercase tracking-widest mb-2">Membership Fee</p>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-black text-white">${price}</span>
+              <span className="text-4xl font-black text-white">{formatPrice(price)}</span>
               <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">
                 {isRenewal ? '/ month renewal' : 'first month'}
               </span>
@@ -753,15 +756,15 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total to Pay</p>
                     <div className="flex items-baseline gap-2">
-                      <p className={cn("text-xl font-black", appliedCoupon ? "text-green-600" : "text-slate-900")}>${price}</p>
+                      <p className={cn("text-xl font-black", appliedCoupon ? "text-green-600" : "text-slate-900")}>{formatPrice(price)}</p>
                       {appliedCoupon && (
-                        <p className="text-xs font-bold text-slate-400 line-through">${basePrice}</p>
+                        <p className="text-xs font-bold text-slate-400 line-through">{formatPrice(basePrice)}</p>
                       )}
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Wallet Balance</p>
-                    <p className="text-sm font-bold text-slate-600">${(profile.walletBalance || 0).toLocaleString()}</p>
+                    <p className="text-sm font-bold text-slate-600">{formatPrice(profile.walletBalance || 0)}</p>
                   </div>
                 </div>
 
@@ -791,6 +794,7 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
 
 const Profile: React.FC = () => {
   const { user, profile, loading, refreshProfile, logout } = useUserAuth();
+  const { formatPrice } = useCurrency();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [wishlistCourses, setWishlistCourses] = useState<Course[]>([]);
@@ -839,8 +843,8 @@ const Profile: React.FC = () => {
 
   useEffect(() => {
     const fetchTools = async () => {
-      const result = await toolService.getAllToolsRaw();
-      setAllTools(result);
+      const tools = await toolService.getTools();
+      setAllTools(tools);
     };
     fetchTools();
   }, []);
@@ -862,7 +866,7 @@ const Profile: React.FC = () => {
     }
 
     const loadWishlist = async () => {
-      const allCourses = await courseService.getAllCoursesRaw();
+      const allCourses = await courseService.getCourses();
       const wishlistIds = wishlistService.getWishlistItems();
       const filtered = allCourses.filter(c => wishlistIds.includes(String(c.id)));
       setWishlistCourses(filtered);
@@ -904,7 +908,7 @@ const Profile: React.FC = () => {
 
     const loadPurchasedCourses = async () => {
       if (profile?.purchasedCourses) {
-        const allCourses = await courseService.getAllCoursesRaw();
+        const allCourses = await courseService.getCourses();
         const filtered = allCourses.filter(c => profile.purchasedCourses?.includes(String(c.id)));
         setPurchasedCourses(filtered);
       }
@@ -1580,7 +1584,7 @@ const Profile: React.FC = () => {
                         <div className="space-y-1">
                           <p className="text-slate-500 text-xs font-bold ml-1">Current Balance</p>
                           <div className="flex items-baseline gap-2">
-                            <span className="text-5xl font-black tracking-tighter">${(profile.walletBalance || 0).toLocaleString()}</span>
+                            <span className="text-5xl font-black tracking-tighter">{formatPrice(profile.walletBalance || 0)}</span>
                             <span className="text-slate-500 font-bold text-sm uppercase tracking-widest">USD</span>
                           </div>
                         </div>
@@ -1664,7 +1668,7 @@ const Profile: React.FC = () => {
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="text-lg font-black text-slate-900">${req.amount.toLocaleString()}</p>
+                              <p className="text-lg font-black text-slate-900">{formatPrice(req.amount)}</p>
                               <span className={cn(
                                 "text-[10px] font-black uppercase px-2 py-0.5 rounded-full",
                                 req.status === 'Pending' ? "bg-blue-100 text-blue-600" :
@@ -1746,7 +1750,7 @@ const Profile: React.FC = () => {
                                 "text-lg font-black",
                                 (tx.type === 'deposit' || tx.type === 'affiliate_commission' || tx.type === 'refund') ? "text-green-500" : "text-red-500"
                               )}>
-                                {(tx.type === 'deposit' || tx.type === 'affiliate_commission' || tx.type === 'refund') ? '+' : ''}{tx.amount.toLocaleString()}$
+                                {(tx.type === 'deposit' || tx.type === 'affiliate_commission' || tx.type === 'refund') ? '+' : ''}{formatPrice(tx.amount)}
                               </div>
                             </div>
                           );
@@ -1803,7 +1807,7 @@ const Profile: React.FC = () => {
                           <div className="p-6 flex-1 flex flex-col">
                             <h3 className="font-bold text-slate-900 mb-4 line-clamp-2 leading-tight">{course.title}</h3>
                             <div className="flex items-center justify-between mt-auto">
-                              <span className="font-black text-xl text-[#FF6B35]">{course.price}</span>
+                              <span className="font-black text-xl text-[#FF6B35]">{formatPrice(course.price)}</span>
                               <div className="flex gap-2">
                                 <Link 
                                   to={`/course/${course.id}`}
@@ -1875,7 +1879,7 @@ const Profile: React.FC = () => {
                           </div>
                           <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Affiliate Balance</span>
                         </div>
-                        <p className="text-3xl font-black text-[#FF6B35]">${(profile.affiliateBalance || 0).toLocaleString()}</p>
+                        <p className="text-3xl font-black text-[#FF6B35]">{formatPrice(profile.affiliateBalance || 0)}</p>
                       </div>
                     </div>
 
@@ -1979,7 +1983,7 @@ const Profile: React.FC = () => {
                                       <td className="px-6 py-4 text-sm text-slate-500 font-medium">
                                         {req.timestamp?.toDate ? req.timestamp.toDate().toLocaleDateString() : 'Pending...'}
                                       </td>
-                                      <td className="px-6 py-4 text-sm font-black text-slate-900">${req.amount.toLocaleString()}</td>
+                                      <td className="px-6 py-4 text-sm font-black text-slate-900">{formatPrice(req.amount)}</td>
                                       <td className="px-6 py-4 text-sm text-slate-500 font-bold">{req.method}</td>
                                       <td className="px-6 py-4">
                                         <span className={cn(

@@ -23,7 +23,7 @@ export default function About() {
   useEffect(() => {
     const loadInitialData = async () => {
       setCartCount(cartService.getCartCount());
-      const allCourses = await courseService.getAllCoursesRaw();
+      const allCourses = await courseService.getCourses();
       const cartItems = cartService.getCartItems();
       const items = cartItems
         .filter(item => item.type === 'course')
@@ -34,7 +34,7 @@ export default function About() {
 
     const handleCartUpdate = async () => {
       setCartCount(cartService.getCartCount());
-      const allCourses = await courseService.getAllCoursesRaw();
+      const allCourses = await courseService.getCourses();
       const cartItems = cartService.getCartItems();
       const items = cartItems
         .filter(item => item.type === 'course')

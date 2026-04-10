@@ -11,6 +11,7 @@ import { walletService } from './services/walletService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
 import { useUserAuth } from './components/AuthContext';
+import { useCurrency } from './components/CurrencyContext';
 import Logo from './components/ui/Logo';
 import LoadingScreen from './components/ui/LoadingScreen';
 import './CourseDetail.css';
@@ -73,6 +74,7 @@ export default function CourseDetail() {
   const [course, setCourse] = useState<Course | undefined>(undefined);
   const [activeImage, setActiveImage] = useState(0);
   const { user, profile, logout } = useUserAuth();
+  const { formatPrice } = useCurrency();
   const [cartCount, setCartCount] = useState<number>(cartService.getCartCount());
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
@@ -107,13 +109,12 @@ export default function CourseDetail() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      if (!slug) return;
-      
-      const [foundCourse, fetchedSettings] = await Promise.all([
-        courseService.getCourseBySlug(slug),
+      const [allCourses, fetchedSettings] = await Promise.all([
+        courseService.getCourses(),
         settingsService.getSettings()
       ]);
       
+      const foundCourse = allCourses.find(c => slugify(c.title) === slug);
       setCourse(foundCourse);
       setSettings(fetchedSettings);
       
@@ -125,10 +126,6 @@ export default function CourseDetail() {
       setCartCount(cartService.getCartCount());
       
       const cartItems = cartService.getCartItems();
-      // For cart display, we might need all courses or just the ones in cart
-      // To save reads, we'll fetch only the courses in cart if needed
-      // But for now, we'll use the cached getAllCoursesRaw if we need to find them
-      const allCourses = await courseService.getAllCoursesRaw();
       const items = cartItems
         .filter(item => item.type === 'course')
         .map(item => allCourses.find(c => c.id === item.id))
@@ -140,7 +137,7 @@ export default function CourseDetail() {
 
     const handleCartUpdate = async () => {
       setCartCount(cartService.getCartCount());
-      const allCourses = await courseService.getAllCoursesRaw();
+      const allCourses = await courseService.getCourses();
       const cartItems = cartService.getCartItems();
       const items = cartItems
         .filter(item => item.type === 'course')
@@ -154,8 +151,8 @@ export default function CourseDetail() {
     };
     
     const handleCoursesUpdate = async () => {
-      if (!slug) return;
-      const foundCourse = await courseService.getCourseBySlug(slug);
+      const allCourses = await courseService.getCourses();
+      const foundCourse = allCourses.find(c => slugify(c.title) === slug);
       setCourse(foundCourse);
       if (foundCourse) {
         const fetchedReviews = await courseService.getReviews(foundCourse.id);
@@ -1079,7 +1076,7 @@ export default function CourseDetail() {
                     <div className="flex justify-between items-center text-gray-500">
                       <span className="text-sm font-medium">Subtotal</span>
                       <span className="font-bold">
-                        ${cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0).toFixed(2)}
+                        {formatPrice(cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0))}
                       </span>
                     </div>
                     {appliedCoupon && (
@@ -1089,25 +1086,25 @@ export default function CourseDetail() {
                           {appliedCoupon.courseId && " - Course Specific"}
                         </span>
                         <span className="font-bold">
-                          -${(
+                          -{formatPrice(
                             appliedCoupon.courseId 
                               ? (Number(cartItems.find(item => String(item.id) === appliedCoupon.courseId)?.price.replace('$', '') || 0) * appliedCoupon.discount / 100)
                               : (cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0) * appliedCoupon.discount / 100)
-                          ).toFixed(2)}
+                          )}
                         </span>
                       </div>
                     )}
                     <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                       <span className="text-lg font-bold text-gray-900">Total</span>
                       <span className="text-2xl font-black text-[#FF6B35]">
-                        ${(
+                        {formatPrice(
                           cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0) - 
                           (appliedCoupon ? (
                             appliedCoupon.courseId 
                               ? (Number(cartItems.find(item => String(item.id) === appliedCoupon.courseId)?.price.replace('$', '') || 0) * appliedCoupon.discount / 100)
                               : (cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0) * appliedCoupon.discount / 100)
                           ) : 0)
-                        ).toFixed(2)}
+                        )}
                       </span>
                     </div>
                   </div>

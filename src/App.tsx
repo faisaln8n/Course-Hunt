@@ -16,6 +16,7 @@ import Tools from './Tools.tsx';
 import Login from './Login.tsx';
 import Profile from './Profile.tsx';
 import { AuthProvider } from './components/AuthContext';
+import { CurrencyProvider } from './components/CurrencyContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { presenceService } from './services/presenceService';
 import CartDrawer from './components/CartDrawer';
@@ -89,27 +90,29 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <Router>
-          <ReferralTracker />
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/course/:slug" element={<CourseDetail />} />
-            <Route path="/tool/:slug" element={<ToolDetail />} />
-            <Route path="/tools" element={<Tools />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Login />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute loginElement={<AdminLogin />}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } 
-              />
-          </Routes>
-          <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
-        </Router>
+        <CurrencyProvider>
+          <Router>
+            <ReferralTracker />
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/course/:slug" element={<CourseDetail />} />
+              <Route path="/tool/:slug" element={<ToolDetail />} />
+              <Route path="/tools" element={<Tools />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Login />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route 
+                path="/admin" 
+                element={
+                  <ProtectedRoute loginElement={<AdminLogin />}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                } 
+                />
+            </Routes>
+            <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+          </Router>
+        </CurrencyProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

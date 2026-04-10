@@ -1,6 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
+function cn(...classes: (string | undefined | null | boolean)[]): string {
+  return classes.filter(Boolean).join(" ");
+}
+
 interface LogoProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -19,11 +23,31 @@ const Logo: React.FC<LogoProps> = ({ className = "", size = 'md' }) => {
   return (
     <div className={`flex items-center justify-center group ${className}`}>
       <motion.div 
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
         className="flex items-center"
       >
-        <span className={`${current.main} font-black tracking-tighter text-slate-900 uppercase leading-none flex items-center gap-[0.02em]`}>
+        <img 
+          src="/logo.png" 
+          alt="Cheap Logo" 
+          className={cn(
+            "object-contain transition-transform group-hover:scale-105",
+            size === 'sm' && "h-8 md:h-8",
+            size === 'md' && "h-12 md:h-10",
+            size === 'lg' && "h-14 md:h-12",
+            size === 'xl' && "h-48 md:h-64"
+          )}
+          onError={(e) => {
+            // Fallback to text logo if image fails to load
+            e.currentTarget.style.display = 'none';
+            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+            if (fallback) fallback.style.display = 'flex';
+          }}
+        />
+        <span 
+          style={{ display: 'none' }}
+          className={`${current.main} font-black tracking-tighter text-slate-900 uppercase leading-none flex items-center gap-[0.02em]`}
+        >
           CH
           <span className="relative flex items-center justify-center mx-[0.05em]">
             <div className="bg-slate-900 rounded-full w-[2.1em] h-[0.95em] flex items-center px-[0.1em]">

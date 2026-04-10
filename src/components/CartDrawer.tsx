@@ -7,6 +7,7 @@ import { toolService } from '../services/toolService';
 import { walletService } from '../services/walletService';
 import { settingsService, Coupon } from '../services/settingsService';
 import { useUserAuth } from './AuthContext';
+import { useCurrency } from './CurrencyContext';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,6 +24,7 @@ interface DetailedCartItem extends CartItem {
 
 const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
   const { user, profile } = useUserAuth();
+  const { formatPrice } = useCurrency();
   const navigate = useNavigate();
   const [items, setItems] = useState<DetailedCartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,8 +36,8 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
     const cartItems = cartService.getCartItems();
     const [allCourses, allTools] = await Promise.all([
-      courseService.getAllCoursesRaw(),
-      toolService.getAllToolsRaw()
+      courseService.getCourses(),
+      toolService.getTools()
     ]);
 
     const detailedItems = cartItems.map(item => {
@@ -296,7 +298,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                         </span>
                       </div>
                       <h4 className="font-bold text-slate-900 text-sm line-clamp-2 leading-tight mb-2">{item.title}</h4>
-                      <p className="text-[#FF6B35] font-black text-lg">${item.price.toFixed(2)}</p>
+                      <p className="text-[#FF6B35] font-black text-lg">{formatPrice(item.price)}</p>
                     </div>
                     <button 
                       onClick={() => handleRemove(item.id, item.type)}
@@ -310,9 +312,9 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
             </div>
 
             {items.length > 0 && (
-              <div className="p-6 bg-slate-50/80 backdrop-blur-md border-t border-slate-100 space-y-6">
+              <div className="p-4 md:p-5 bg-slate-50/80 backdrop-blur-md border-t border-slate-100 space-y-4">
                 {/* Coupon Section */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Have a coupon?</label>
                     {appliedCoupon && (
@@ -326,69 +328,69 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                   </div>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
-                      <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                       <input 
                         type="text" 
                         placeholder="Enter code"
                         value={couponCode}
                         onChange={(e) => setCouponCode(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:border-[#FF6B35] outline-none transition-all uppercase"
+                        className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:border-[#FF6B35] outline-none transition-all uppercase"
                       />
                     </div>
                     <button 
                       onClick={handleApplyCoupon}
-                      className="px-4 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all"
+                      className="px-4 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all"
                     >
                       Apply
                     </button>
                   </div>
                   {appliedCoupon && (
-                    <div className="flex items-center gap-2 text-green-600 bg-green-50 p-2 rounded-lg border border-green-100">
-                      <Check className="w-4 h-4" />
-                      <span className="text-xs font-bold uppercase tracking-tight">Coupon "{appliedCoupon.code}" applied!</span>
+                    <div className="flex items-center gap-2 text-green-600 bg-green-50 p-1.5 rounded-lg border border-green-100">
+                      <Check className="w-3.5 h-3.5" />
+                      <span className="text-[10px] font-bold uppercase tracking-tight">Coupon "{appliedCoupon.code}" applied!</span>
                     </div>
                   )}
                 </div>
 
                 {/* Summary */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm font-bold text-slate-500">
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs font-bold text-slate-500">
                     <span>Subtotal</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span>{formatPrice(subtotal)}</span>
                   </div>
                   {discount > 0 && (
-                    <div className="flex justify-between text-sm font-bold text-green-600">
+                    <div className="flex justify-between text-xs font-bold text-green-600">
                       <span>Discount</span>
-                      <span>-${discount.toFixed(2)}</span>
+                      <span>-{formatPrice(discount)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                    <span className="text-lg font-black text-slate-900 uppercase tracking-tight">Total</span>
-                    <span className="text-3xl font-black text-[#FF6B35]">${total.toFixed(2)}</span>
+                  <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
+                    <span className="text-sm font-black text-slate-900 uppercase tracking-tight">Total</span>
+                    <span className="text-2xl font-black text-[#FF6B35]">{formatPrice(total)}</span>
                   </div>
                 </div>
 
                 {/* Checkout Button */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-200">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200">
                     <div className="flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-slate-400" />
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Wallet Balance</span>
+                      <Wallet className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Wallet Balance</span>
                     </div>
-                    <span className="text-sm font-black text-slate-900">${(profile?.walletBalance || 0).toLocaleString()}</span>
+                    <span className="text-xs font-black text-slate-900">{formatPrice(profile?.walletBalance || 0)}</span>
                   </div>
 
                   <button 
                     onClick={handleCheckout}
                     disabled={isPurchasing}
-                    className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-[#FF6B35] hover:text-black hover:shadow-[#FF6B35]/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50 group"
+                    className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase tracking-widest shadow-lg shadow-slate-900/20 hover:bg-[#FF6B35] hover:text-black hover:shadow-[#FF6B35]/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50 group text-sm"
                   >
                     {isPurchasing ? (
-                      <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-4 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <>
                         Checkout with Wallet
-                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </>
                     )}
                   </button>

@@ -22,17 +22,6 @@ export const cartService = {
     }
 
     if (userId) {
-      // 1. Check if we already fetched the cart recently to save reads
-      const cacheKey = `cart_fetched_${userId}`;
-      const lastFetched = localStorage.getItem(cacheKey);
-      const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-      if (lastFetched && Date.now() - parseInt(lastFetched) < CACHE_TTL) {
-        console.log('Cart already fetched recently, skipping Firestore read');
-        window.dispatchEvent(new Event('cart-updated'));
-        return;
-      }
-
       // One-time fetch from Firestore for logged-in users
       const cartRef = doc(db, 'carts', userId);
       getDoc(cartRef).then((docSnap) => {
@@ -41,7 +30,6 @@ export const cartService = {
           const items = data.items || [];
           const userKey = `course_hunt_cart_${userId}`;
           localStorage.setItem(userKey, JSON.stringify(items));
-          localStorage.setItem(cacheKey, Date.now().toString());
           window.dispatchEvent(new Event('cart-updated'));
         }
       }).catch((error) => {

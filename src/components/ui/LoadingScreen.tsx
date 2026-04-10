@@ -5,7 +5,7 @@ import Logo from './Logo';
 const LoadingScreen: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white">
-      <div className="relative">
+      <div className="relative flex flex-col items-center">
         {/* Text Logo with bounce and scale animation */}
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }}
@@ -28,18 +28,17 @@ const LoadingScreen: React.FC = () => {
             <Logo size="xl" className="justify-center" />
           </motion.div>
         </motion.div>
-      </div>
 
-      {/* Loading text with typing effect */}
-      <div className="mt-8 flex flex-col items-center">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="text-[#FF6B35] font-bold text-lg md:text-xl tracking-widest uppercase"
-        >
-          Cheap
-        </motion.div>
+        {/* Loading text with typing effect */}
+        <div className="mt-10 flex flex-col items-center">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="text-[#FF6B35] font-black text-4xl md:text-6xl tracking-[0.2em] uppercase"
+          >
+            Cheap
+          </motion.div>
         
         <div className="mt-4 flex gap-1">
           {[0, 1, 2].map((i) => (
@@ -59,6 +58,7 @@ const LoadingScreen: React.FC = () => {
           ))}
         </div>
       </div>
+    </div>
 
       {/* Background decorative elements */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">

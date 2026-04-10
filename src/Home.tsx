@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Menu, X, Star, ShoppingCart, Plus, Check, Tag, Trash2, Filter, ChevronDown, User, LogOut, Heart, Target, Megaphone, ChevronRight } from 'lucide-react';
+import { Search, Menu, X, Star, ShoppingCart, Plus, Check, Tag, Trash2, Filter, ChevronDown, User, LogOut, Heart, Target, Megaphone, ChevronRight, DollarSign } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { analyticsService } from './services/analyticsService';
 import { cartService } from './services/cartService';
@@ -15,6 +15,8 @@ import { Toaster, toast } from 'sonner';
 import { useUserAuth } from './components/AuthContext';
 import Logo from './components/ui/Logo';
 import LoadingScreen from './components/ui/LoadingScreen';
+import { useCurrency } from './components/CurrencyContext';
+import { CurrencySwitcher } from './components/CurrencySwitcher';
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
   return classes.filter(Boolean).join(" ");
@@ -35,6 +37,12 @@ const TypingText = ({ texts, speed = 150, delay = 2000 }: { texts: string[], spe
   const [index, setIndex] = useState(0);
   const [displayText, setDisplayText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const colors = [
+    'from-[#FF6B35] to-[#E85D04]', // Orange
+    'from-[#7C3AED] to-[#5B21B6]', // Purple
+    'from-[#059669] to-[#047857]'  // Green
+  ];
 
   useEffect(() => {
     const currentText = texts[index];
@@ -57,14 +65,14 @@ const TypingText = ({ texts, speed = 150, delay = 2000 }: { texts: string[], spe
   }, [displayText, isDeleting, index, texts, speed, delay]);
 
   return (
-    <span className="inline-block min-w-[1ch]">
-      <span className="bg-gradient-to-r from-[#FF6B35] to-[#E85D04] bg-clip-text text-transparent">
+    <span className="inline-block min-w-[1ch] border-[3px] md:border-[6px] border-black px-2 md:px-4 py-0.5 md:py-1 rounded-lg md:rounded-2xl bg-white shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] md:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] mx-1 md:mx-2 transform -rotate-1 text-[1.1em]">
+      <span className={cn("bg-gradient-to-r bg-clip-text text-transparent", colors[index % colors.length])}>
         {displayText}
       </span>
       <motion.span
         animate={{ opacity: [0, 1, 0] }}
         transition={{ duration: 0.8, repeat: Infinity }}
-        className="inline-block w-[3px] h-[0.8em] bg-[#FF6B35] ml-1 align-middle"
+        className="inline-block w-[2px] md:w-[4px] h-[0.8em] bg-black ml-1 align-middle"
       />
     </span>
   );
@@ -130,11 +138,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [cartCount, setCartCount] = useState<number>(cartService.getCartCount());
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
-  const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [lastDoc, setLastDoc] = useState<any>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(settingsService.getDefaultSettings());
   const [cartItems, setCartItems] = useState<Course[]>([]);
   const [isPurchasing, setIsPurchasing] = useState(false);
@@ -142,6 +146,8 @@ export default function Home() {
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [showAllCategories, setShowAllCategories] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const { formatPrice } = useCurrency();
 
   const dotsRef = useRef<Dot[]>([]);
   const gridRef = useRef<Record<string, number[]>>({});
@@ -372,35 +378,29 @@ export default function Home() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      setIsLoading(true);
-      // 1. Use the optimized getCourses and getSettings with internal caching
-      const [coursesResult, fetchedSettings] = await Promise.all([
+      const [fetchedCourses, fetchedSettings] = await Promise.all([
         courseService.getCourses(),
         settingsService.getSettings()
       ]);
-      
-      setCourses(coursesResult.courses);
-      setLastDoc(coursesResult.lastDoc);
-      setHasMore(!!coursesResult.lastDoc);
+      setCourses(fetchedCourses);
       setSettings(fetchedSettings);
       setCartCount(cartService.getCartCount());
       
       const cartItems = cartService.getCartItems();
       const items = cartItems
         .filter(item => item.type === 'course')
-        .map(item => coursesResult.courses.find(c => c.id === item.id))
+        .map(item => fetchedCourses.find(c => c.id === item.id))
         .filter((c): c is Course => !!c);
       setCartItems(items);
       setIsLoading(false);
     };
 
-    const handleCartUpdate = async () => {
+    const handleCartUpdate = () => {
       setCartCount(cartService.getCartCount());
       const cartItems = cartService.getCartItems();
-      const allCourses = await courseService.getAllCoursesRaw();
       const items = cartItems
         .filter(item => item.type === 'course')
-        .map(item => allCourses.find(c => c.id === item.id))
+        .map(item => courses.find(c => c.id === item.id))
         .filter((c): c is Course => !!c);
       setCartItems(items);
     };
@@ -410,8 +410,8 @@ export default function Home() {
     };
     
     const handleCoursesUpdate = async () => {
-      const result = await courseService.getCourses();
-      setCourses(result.courses);
+      const fetchedCourses = await courseService.getCourses();
+      setCourses(fetchedCourses);
     };
 
     const handleSettingsUpdate = async () => {
@@ -492,7 +492,6 @@ export default function Home() {
       setCartItems([]);
       setAppliedCoupon(null);
       setCouponCode('');
-      setIsCartOpen(false);
       toast.success('Purchase successful! You can now access your courses in your profile.');
       navigate('/profile');
     } catch (error: any) {
@@ -504,21 +503,6 @@ export default function Home() {
 
   const parsePrice = (priceStr: string) => {
     return parseFloat(priceStr.replace(/[^0-9.]/g, '')) || 0;
-  };
-
-  const loadMoreCourses = async () => {
-    if (isLoadingMore || !lastDoc) return;
-    setIsLoadingMore(true);
-    try {
-      const result = await courseService.getCourses(lastDoc);
-      setCourses(prev => [...prev, ...result.courses]);
-      setLastDoc(result.lastDoc);
-      setHasMore(!!result.lastDoc);
-    } catch (error) {
-      console.error('Error loading more courses:', error);
-    } finally {
-      setIsLoadingMore(false);
-    }
   };
 
   const filteredCourses = courses.filter(course => {
@@ -652,6 +636,7 @@ export default function Home() {
             </Link>
 
             <div className="hidden md:flex items-center space-x-4 md:space-x-6">
+              <CurrencySwitcher />
               <motion.div 
                 className="relative cursor-pointer"
                 whileHover={{ scale: 1.1 }}
@@ -710,7 +695,10 @@ export default function Home() {
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="md:hidden bg-white/95 backdrop-blur-md border-t border-gray-200 overflow-hidden"
+              className={cn(
+                "md:hidden bg-white/95 backdrop-blur-md border-t border-gray-200",
+                isMobileMenuOpen ? "overflow-visible" : "overflow-hidden"
+              )}
             >
               <motion.div 
                 className="container mx-auto px-4 py-4 flex flex-col space-y-4"
@@ -726,6 +714,20 @@ export default function Home() {
                   }
                 }}
               >
+                {/* Enhanced Mobile Menu Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#FF6B35]/10 rounded-xl flex items-center justify-center">
+                      <DollarSign className="w-5 h-5 text-[#FF6B35]" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-[0.2em] text-[#FF6B35]">Preferences</h4>
+                      <p className="text-[10px] font-bold text-slate-400">Currency & Settings</p>
+                    </div>
+                  </div>
+                  <CurrencySwitcher />
+                </div>
+
                 <Link 
                   to="/tools"
                   className="flex items-center justify-center gap-3 bg-[#7C3AED] text-white px-8 py-4 rounded-xl text-center text-lg font-black uppercase tracking-widest shadow-md active:scale-95 no-underline group"
@@ -739,7 +741,7 @@ export default function Home() {
                 <div 
                   className="flex items-center justify-center space-x-2 py-2 cursor-pointer"
                   onClick={() => {
-                    setIsCartOpen(true);
+                    window.dispatchEvent(new Event('open-cart'));
                     setIsMobileMenuOpen(false);
                   }}
                 >
@@ -788,7 +790,7 @@ export default function Home() {
             transition={{ duration: 0.7, delay: 0.1 }}
             className="mb-10"
           >
-            <h1 className="text-[24px] sm:text-5xl md:text-7xl lg:text-8xl font-black text-gray-900 mb-4 tracking-tighter leading-none flex items-center justify-center gap-x-2 whitespace-nowrap">
+            <h1 className="text-[6.8vw] sm:text-5xl md:text-7xl lg:text-8xl font-black font-mono text-gray-900 mb-4 tracking-tighter leading-none flex items-center justify-center gap-x-1 md:gap-x-4 whitespace-nowrap">
               <span className="relative inline-block">
                 <span className="absolute -left-3 -top-1 text-[#FF6B35]/20 text-3xl md:text-6xl font-serif">"</span>
                 Global Cheapest
@@ -1031,41 +1033,43 @@ export default function Home() {
                         </motion.div>
                       )}
                     </div>
-                    <div className="p-3 md:p-5 flex-1 flex flex-col">
-                      <h3 className="text-sm md:text-lg font-semibold text-gray-900 mb-1 md:mb-2 line-clamp-2">
+                    <div className="p-4 md:p-6 flex-1 flex flex-col">
+                      <h3 className="text-base md:text-xl font-black text-black mb-2 md:mb-3 line-clamp-2 leading-tight tracking-tight group-hover:text-[#FF6B35] transition-colors">
                         {course.title}
                       </h3>
-                      <div className="flex items-center mb-3 md:mb-3">
-                        <div className="flex items-center">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <motion.div
-                              key={i}
-                              initial={{ scale: 0, rotate: -180 }}
-                              animate={{ scale: 1, rotate: 0 }}
-                              transition={{ delay: 0.6 + index * 0.08 + i * 0.05, type: "spring", stiffness: 200 }}
-                            >
-                              <Star
-                                className={cn(
-                                  "w-3 h-3 md:w-4 md:h-4",
-                                  i < course.rating ? "fill-[#ffa534] text-[#ffa534]" : "fill-gray-300 text-gray-300"
-                                )}
-                              />
-                            </motion.div>
-                          ))}
+                      <div className="flex items-center mb-4 md:mb-5">
+                        <div className="flex items-center bg-slate-50 px-2 md:px-3 py-1 rounded-full border border-slate-200 shadow-sm">
+                          <div className="flex items-center mr-1.5 md:mr-2">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <motion.div
+                                key={i}
+                                initial={{ scale: 0, rotate: -180 }}
+                                animate={{ scale: 1, rotate: 0 }}
+                                transition={{ delay: 0.6 + index * 0.08 + i * 0.05, type: "spring", stiffness: 200 }}
+                              >
+                                <Star
+                                  className={cn(
+                                    "w-3 h-3 md:w-4 md:h-4",
+                                    i < course.rating ? "fill-[#ffa534] text-[#ffa534]" : "fill-gray-300 text-gray-300"
+                                  )}
+                                />
+                              </motion.div>
+                            ))}
+                          </div>
+                          <span className="text-[10px] md:text-xs font-black text-slate-600">({course.reviews})</span>
                         </div>
-                        <span className="text-[10px] md:text-sm text-gray-500 ml-1 md:ml-2">({course.reviews})</span>
                       </div>
                       
-                      <div className="mt-auto space-y-3">
-                        <div className="flex items-center gap-2 flex-wrap">
+                      <div className="mt-auto space-y-4">
+                        <div className="flex items-end gap-3 flex-wrap">
                           <div className="flex flex-col">
-                            <span className="text-xs text-gray-400 line-through font-medium leading-none mb-1">{course.originalPrice}</span>
+                            <span className="text-xs md:text-sm text-gray-400 line-through font-bold leading-none mb-1">{formatPrice(course.originalPrice)}</span>
                             <motion.span 
-                              className="text-2xl md:text-3xl font-black text-[#FF6B35] leading-none"
+                              className="text-3xl md:text-4xl font-black text-[#FF6B35] leading-none tracking-tighter"
                               initial={{ opacity: 0, x: -10 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ delay: 0.7 + index * 0.08 }}
-                            >{course.price}</motion.span>
+                            >{formatPrice(course.price)}</motion.span>
                           </div>
                           {(() => {
                             const p = parseFloat(course.price.replace(/[^0-9.]/g, ''));
@@ -1073,7 +1077,7 @@ export default function Home() {
                             if (op > p) {
                               const discount = Math.round(((op - p) / op) * 100);
                               return (
-                                <div className="bg-green-100 text-green-700 text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-tighter">
+                                <div className="bg-[#86EFAC] text-black text-[10px] md:text-xs font-black font-mono px-2.5 py-1.5 rounded-lg uppercase tracking-tighter border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] mb-1">
                                   Save {discount}%
                                 </div>
                               );
@@ -1143,14 +1147,52 @@ export default function Home() {
             })}
           </div>
 
-          {hasMore && (
+          {totalPages > 1 && (
             <div className="flex justify-center items-center flex-wrap gap-3 mt-12 mb-20">
               <button
-                onClick={loadMoreCourses}
-                disabled={isLoadingMore}
-                className="px-12 py-4 rounded-xl bg-[#FF6B35] text-black border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:opacity-30 disabled:shadow-none disabled:translate-y-0 transition-all font-black text-sm uppercase tracking-widest active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-5 py-2.5 rounded-xl bg-white text-black border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:opacity-30 disabled:shadow-none disabled:translate-y-0 transition-all font-black text-sm uppercase tracking-widest active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
               >
-                {isLoadingMore ? 'Loading...' : 'Load More Courses'}
+                Prev
+              </button>
+              
+              <div className="flex items-center gap-2">
+                {Array.from({ length: totalPages }).map((_, i) => {
+                  const pageNum = i + 1;
+                  if (
+                    pageNum === 1 || 
+                    pageNum === totalPages || 
+                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                  ) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={cn(
+                          "w-12 h-12 rounded-xl font-black transition-all border-2 text-lg",
+                          currentPage === pageNum 
+                            ? "bg-[#FF6B35] text-black border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] -translate-y-0.5" 
+                            : "bg-white text-gray-400 border-gray-200 hover:border-black hover:text-black"
+                        )}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+                  if (pageNum === 2 || pageNum === totalPages - 1) {
+                    return <span key={pageNum} className="text-gray-300 font-black text-xl px-1">/</span>;
+                  }
+                  return null;
+                })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-5 py-2.5 rounded-xl bg-[#FF6B35] text-black border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:opacity-30 disabled:shadow-none disabled:translate-y-0 transition-all font-black text-sm uppercase tracking-widest active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
+              >
+                Next
               </button>
             </div>
           )}

@@ -16,17 +16,6 @@ export const wishlistService = {
     }
 
     if (userId) {
-      // 1. Check if we already fetched the wishlist recently to save reads
-      const cacheKey = `wishlist_fetched_${userId}`;
-      const lastFetched = localStorage.getItem(cacheKey);
-      const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-      if (lastFetched && Date.now() - parseInt(lastFetched) < CACHE_TTL) {
-        console.log('Wishlist already fetched recently, skipping Firestore read');
-        window.dispatchEvent(new Event('wishlist-updated'));
-        return;
-      }
-
       const wishlistRef = doc(db, 'wishlists', userId);
       getDoc(wishlistRef).then((docSnap) => {
         if (docSnap.exists()) {
@@ -34,7 +23,6 @@ export const wishlistService = {
           const items = data.items || [];
           const userKey = `course_hunt_wishlist_${userId}`;
           localStorage.setItem(userKey, JSON.stringify(items));
-          localStorage.setItem(cacheKey, Date.now().toString());
           window.dispatchEvent(new Event('wishlist-updated'));
         }
       }).catch((error) => {

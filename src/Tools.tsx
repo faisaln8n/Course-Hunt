@@ -26,6 +26,7 @@ import { Tool } from './data/tools';
 import { analyticsService } from './services/analyticsService';
 import { walletService } from './services/walletService';
 import { Toaster, toast } from 'sonner';
+import { useCurrency } from './components/CurrencyContext';
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
   return classes.filter(Boolean).join(" ");
@@ -35,9 +36,6 @@ export default function Tools() {
   const { user, logout } = useUserAuth();
   const navigate = useNavigate();
   const [tools, setTools] = useState<Tool[]>([]);
-  const [lastDoc, setLastDoc] = useState<any>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [filteredTools, setFilteredTools] = useState<Tool[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -48,19 +46,17 @@ export default function Tools() {
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<AppSettings>(settingsService.getDefaultSettings());
   const [visibleCount, setVisibleCount] = useState(25); // 5 columns * 5 rows = 25
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      // 1. Use optimized services with internal caching
-      const [fetchedSettings, toolsResult] = await Promise.all([
+      const [fetchedSettings, fetchedTools] = await Promise.all([
         settingsService.getSettings(),
         toolService.getTools()
       ]);
       setSettings(fetchedSettings);
-      setTools(toolsResult.tools);
-      setLastDoc(toolsResult.lastDoc);
-      setHasMore(!!toolsResult.lastDoc);
+      setTools(fetchedTools);
       setIsLoading(false);
     };
     loadData();
@@ -79,29 +75,13 @@ export default function Tools() {
   }, []);
 
   const updateCartItems = async () => {
-    // 2. Use cached tools for cart display to avoid extra reads
-    const allTools = await toolService.getAllToolsRaw();
+    const allTools = await toolService.getTools();
     const cartItems = cartService.getCartItems();
     const items = cartItems
       .filter(item => item.type === 'tool')
       .map(item => allTools.find(t => t.id === item.id))
       .filter((t): t is Tool => !!t);
     setCartItems(items);
-  };
-
-  const loadMoreTools = async () => {
-    if (isLoadingMore || !lastDoc) return;
-    setIsLoadingMore(true);
-    try {
-      const result = await toolService.getTools(lastDoc);
-      setTools(prev => [...prev, ...result.tools]);
-      setLastDoc(result.lastDoc);
-      setHasMore(!!result.lastDoc);
-    } catch (error) {
-      console.error('Error loading more tools:', error);
-    } finally {
-      setIsLoadingMore(false);
-    }
   };
 
   useEffect(() => {
@@ -245,26 +225,26 @@ export default function Tools() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row gap-6 mb-12">
-          <div className="flex-1 relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <div className="flex-1 relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-[#7C3AED]" />
             <input 
               type="text" 
               placeholder="Search tools..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-[#FF6B35] outline-none transition-all font-medium shadow-sm"
+              className="w-full pl-14 pr-4 py-5 bg-white border-[3px] border-[#7C3AED] rounded-2xl focus:shadow-[6px_6px_0px_0px_rgba(124,58,237,0.3)] outline-none transition-all font-black text-lg md:text-xl shadow-[4px_4px_0px_0px_rgba(124,58,237,1)]"
             />
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+          <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar px-1">
             {categories.map(cat => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
                 className={cn(
-                  "px-6 py-4 rounded-2xl font-bold whitespace-nowrap transition-all shadow-sm",
+                  "px-8 py-4 rounded-2xl font-black whitespace-nowrap transition-all border-[3px] uppercase tracking-widest text-sm md:text-base",
                   selectedCategory === cat 
-                    ? "bg-[#FF6B35] text-white" 
-                    : "bg-white text-slate-600 hover:bg-slate-50"
+                    ? "bg-[#7C3AED] text-white border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] translate-x-[-2px] translate-y-[-2px]" 
+                    : "bg-white text-slate-600 border-slate-200 hover:border-[#7C3AED] hover:text-[#7C3AED]"
                 )}
               >
                 {cat}
@@ -318,11 +298,11 @@ export default function Tools() {
                     </h3>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-slate-900">
-                        {tool.price === 0 ? 'FREE' : `$ ${tool.price}`}
+                        {formatPrice(tool.price)}
                       </span>
                       {tool.originalPrice > tool.price && (
                         <span className="text-xs text-slate-400 line-through font-medium">
-                          $ {tool.originalPrice}
+                          {formatPrice(tool.originalPrice)}
                         </span>
                       )}
                     </div>
@@ -331,14 +311,13 @@ export default function Tools() {
               ))}
             </div>
 
-            {hasMore && (
+            {filteredTools.length > visibleCount && (
               <div className="flex justify-center mt-16">
                 <button
-                  onClick={loadMoreTools}
-                  disabled={isLoadingMore}
+                  onClick={() => setVisibleCount(prev => prev + 12)}
                   className="px-12 py-4 bg-white border border-slate-200 rounded-xl font-bold uppercase tracking-widest text-slate-900 hover:border-[#FF6B35] hover:text-[#FF6B35] transition-all shadow-sm active:scale-95"
                 >
-                  {isLoadingMore ? 'Loading...' : 'See More Tools'}
+                  See More
                 </button>
               </div>
             )}
