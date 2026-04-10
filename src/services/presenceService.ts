@@ -1,4 +1,5 @@
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { userService } from './userService';
 import { 
   doc, 
   setDoc, 
@@ -35,12 +36,25 @@ export const presenceService = {
 
       const presenceRef = doc(db, PRESENCE_COLLECTION, uid);
       
+      let vipStatus = 'none';
+      if (auth.currentUser) {
+        try {
+          const profile = await userService.getUserProfile(auth.currentUser.uid);
+          if (profile) {
+            vipStatus = profile.vipStatus || 'none';
+          }
+        } catch (e) {
+          console.error('Error fetching profile for presence:', e);
+        }
+      }
+
       try {
         await setDoc(presenceRef, {
           uid,
           lastSeen: serverTimestamp(),
           isGuest: !auth.currentUser,
-          email: auth.currentUser?.email || 'Guest'
+          email: auth.currentUser?.email || 'Guest',
+          vipStatus
         }, { merge: true });
       } catch (error) {
         // Only log if it's not a permission error we're already handling or if we want more info

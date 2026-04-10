@@ -14,6 +14,7 @@ import { toolService } from './services/toolService';
 import { Tool } from './data/tools';
 import { UserProfile } from './services/userService';
 import { vipService, VIPRequest } from './services/vipService';
+import { settingsService } from './services/settingsService';
 import { toast } from 'sonner';
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
@@ -491,13 +492,41 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
     whatsappNumber: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
   const isRenewal = profile.vipJoinDate ? true : false;
-  const price = isRenewal ? 5 : 10;
+  const basePrice = isRenewal ? 5 : 10;
+  const price = appliedCoupon ? Math.max(0, basePrice * (1 - appliedCoupon.discount / 100)) : basePrice;
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode) return;
+    setIsApplyingCoupon(true);
+    try {
+      const settings = await settingsService.getSettings();
+      const coupon = (settings.vipCoupons || []).find(c => c.code === couponCode.toUpperCase() && c.isActive);
+      
+      if (!coupon) {
+        toast.error('Invalid or inactive coupon code');
+        setAppliedCoupon(null);
+      } else if (coupon.expiryDate && new Date(coupon.expiryDate) < new Date()) {
+        toast.error('Coupon has expired');
+        setAppliedCoupon(null);
+      } else {
+        setAppliedCoupon(coupon);
+        toast.success(`Coupon applied! ${coupon.discount}% discount`);
+      }
+    } catch (error) {
+      toast.error('Failed to validate coupon');
+    } finally {
+      setIsApplyingCoupon(false);
+    }
+  };
 
   const handleSubmit = async () => {
     console.log('VIP handleSubmit triggered');
-    console.log('Current state:', { fullName: formData.fullName, telegram: formData.telegramUsername, whatsapp: formData.whatsappNumber, price, balance: profile.walletBalance });
+    console.log('Current state:', { fullName: formData.fullName, telegram: formData.telegramUsername, whatsapp: formData.whatsappNumber, price, balance: profile.walletBalance, couponCode: appliedCoupon?.code });
     
     if (!formData.fullName || !formData.telegramUsername || !formData.whatsappNumber) {
       console.warn('Missing form fields');
@@ -521,7 +550,8 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
         fullName: formData.fullName,
         telegramUsername: formData.telegramUsername,
         whatsappNumber: formData.whatsappNumber,
-        amount: price
+        amount: price,
+        couponCode: appliedCoupon?.code
       });
 
       console.log('VIP Request Result:', result);
@@ -689,12 +719,45 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
                       placeholder="+1234567890"
                     />
                   </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">VIP Coupon Code (Optional)</label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input 
+                          type="text"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          className="w-full pl-11 pr-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-[#FF6B35] transition-all font-bold text-sm"
+                          placeholder="VIP50"
+                        />
+                      </div>
+                      <button 
+                        onClick={handleApplyCoupon}
+                        disabled={isApplyingCoupon || !couponCode}
+                        className="px-6 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-[#FF6B35] hover:text-black transition-all disabled:opacity-50"
+                      >
+                        {isApplyingCoupon ? '...' : 'Apply'}
+                      </button>
+                    </div>
+                    {appliedCoupon && (
+                      <p className="mt-2 text-[10px] font-bold text-green-600 flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        Coupon "{appliedCoupon.code}" applied! {appliedCoupon.discount}% discount.
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total to Pay</p>
-                    <p className="text-xl font-black text-slate-900">${price}</p>
+                    <div className="flex items-baseline gap-2">
+                      <p className={cn("text-xl font-black", appliedCoupon ? "text-green-600" : "text-slate-900")}>${price}</p>
+                      {appliedCoupon && (
+                        <p className="text-xs font-bold text-slate-400 line-through">${basePrice}</p>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Wallet Balance</p>
@@ -776,8 +839,8 @@ const Profile: React.FC = () => {
 
   useEffect(() => {
     const fetchTools = async () => {
-      const tools = await toolService.getTools();
-      setAllTools(tools);
+      const result = await toolService.getAllToolsRaw();
+      setAllTools(result);
     };
     fetchTools();
   }, []);
@@ -799,7 +862,7 @@ const Profile: React.FC = () => {
     }
 
     const loadWishlist = async () => {
-      const allCourses = await courseService.getCourses();
+      const allCourses = await courseService.getAllCoursesRaw();
       const wishlistIds = wishlistService.getWishlistItems();
       const filtered = allCourses.filter(c => wishlistIds.includes(String(c.id)));
       setWishlistCourses(filtered);
@@ -841,7 +904,7 @@ const Profile: React.FC = () => {
 
     const loadPurchasedCourses = async () => {
       if (profile?.purchasedCourses) {
-        const allCourses = await courseService.getCourses();
+        const allCourses = await courseService.getAllCoursesRaw();
         const filtered = allCourses.filter(c => profile.purchasedCourses?.includes(String(c.id)));
         setPurchasedCourses(filtered);
       }
@@ -1367,7 +1430,10 @@ const Profile: React.FC = () => {
                               <button 
                                 onClick={() => {
                                   if (course?.courseLink) {
-                                    window.location.href = course.courseLink;
+                                    const url = course.courseLink.startsWith('http') 
+                                      ? course.courseLink 
+                                      : `https://${course.courseLink}`;
+                                    window.open(url, '_blank', 'noopener,noreferrer');
                                   } else {
                                     navigate(`/course/${order.courseId}`);
                                   }
@@ -1375,7 +1441,7 @@ const Profile: React.FC = () => {
                                 className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
                               >
                                 Go to Course
-                                <ArrowLeft className="w-4 h-4 rotate-180" />
+                                <ArrowUpRight className="w-4 h-4" />
                               </button>
                             </div>
                           </motion.div>

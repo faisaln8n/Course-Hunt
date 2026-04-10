@@ -34,8 +34,8 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
     const cartItems = cartService.getCartItems();
     const [allCourses, allTools] = await Promise.all([
-      courseService.getCourses(),
-      toolService.getTools()
+      courseService.getAllCoursesRaw(),
+      toolService.getAllToolsRaw()
     ]);
 
     const detailedItems = cartItems.map(item => {

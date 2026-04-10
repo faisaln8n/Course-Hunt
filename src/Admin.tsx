@@ -148,6 +148,14 @@ export default function AdminDashboard() {
   });
   const [editingToolCouponIndex, setEditingToolCouponIndex] = useState<number | null>(null);
 
+  // VIP Coupon Form State
+  const [vipCouponForm, setVipCouponForm] = useState({
+    code: '',
+    discount: '',
+    expiryDate: ''
+  });
+  const [editingVipCouponIndex, setEditingVipCouponIndex] = useState<number | null>(null);
+
   // Analytics State
   const [timeframe, setTimeframe] = useState(7);
   const [selectedCourseId, setSelectedCourseId] = useState<string | 'all'>('all');
@@ -167,6 +175,21 @@ export default function AdminDashboard() {
   const [vipRequests, setVIPRequests] = useState<VIPRequest[]>([]);
 
   const navigate = useNavigate();
+
+  const pendingCourseOrders = courseOrders.filter(o => !o.status || o.status === 'Pending').length;
+  const pendingToolOrders = toolOrders.filter(o => o.status === 'Ordered').length;
+  const pendingVIPRequests = vipRequests.filter(r => r.status === 'pending').length;
+  const pendingDeposits = depositRequests.filter(r => r.status === 'Pending').length;
+  const pendingWithdrawals = withdrawalRequests.filter(r => r.status === 'Pending').length;
+
+  const Badge = ({ count }: { count: number }) => {
+    if (count <= 0) return null;
+    return (
+      <span className="ml-auto flex h-5 w-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white shadow-sm animate-pulse">
+        {count > 99 ? '99+' : count}
+      </span>
+    );
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -284,13 +307,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      const [fetchedCourses, fetchedTools, fetchedSettings] = await Promise.all([
+      const [fetchedCourses, fetchedToolsResult, fetchedSettings] = await Promise.all([
         courseService.getAllCoursesRaw(),
         toolService.getTools(),
         settingsService.getSettings()
       ]);
       setCourses(fetchedCourses);
-      setTools(fetchedTools);
+      setTools(fetchedToolsResult.tools);
       setSettings(fetchedSettings);
     };
 
@@ -337,25 +360,50 @@ export default function AdminDashboard() {
   const handleAddTool = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    
+    const gallery = (formData.get('gallery') as string)?.split('\n').filter(f => f.trim()) || [];
+    
+    const bundles = [
+      { 
+        name: formData.get('bundle1_name') as string, 
+        price: Number(formData.get('bundle1_price')), 
+        isPopular: formData.get('popular_bundle') === '1' 
+      },
+      { 
+        name: formData.get('bundle2_name') as string, 
+        price: Number(formData.get('bundle2_price')), 
+        isPopular: formData.get('popular_bundle') === '2' 
+      },
+      { 
+        name: formData.get('bundle3_name') as string, 
+        price: Number(formData.get('bundle3_price')), 
+        isPopular: formData.get('popular_bundle') === '3' 
+      }
+    ];
+
     const newTool: Omit<Tool, 'id'> = {
       title: formData.get('title') as string,
-      category: formData.get('category') as string,
       price: Number(formData.get('price')),
       originalPrice: Number(formData.get('originalPrice')),
-      rating: Number(formData.get('rating')),
-      reviews: Number(formData.get('reviews') || 0),
       image: formData.get('image') as string || previewImage || `https://picsum.photos/seed/${Date.now()}/800/600`,
       description: formData.get('description') as string,
-      features: (formData.get('features') as string)?.split('\n').filter(f => f.trim()),
-      whatsIncluded: (formData.get('whatsIncluded') as string)?.split('\n').filter(f => f.trim()),
-      sourceUrl: formData.get('sourceUrl') as string,
-      password: formData.get('password') as string
+      gallery,
+      bundles,
+      fakeReview: {
+        userName: formData.get('fakeReview_user') as string || 'Emily R.',
+        rating: 5,
+        comment: formData.get('fakeReview_comment') as string || '',
+        date: new Date().toISOString()
+      },
+      category: 'Tools',
+      rating: 5,
+      reviews: 1
     };
 
     try {
       const result = await toolService.addTool(newTool);
       if (result.id) {
-        setTools(prev => [...prev, { ...newTool, id: result.id! }]);
+        setTools(prev => [...prev, { ...newTool, id: result.id! } as Tool]);
         setIsAddToolModalOpen(false);
         setPreviewImage(null);
         toast.success('Tool added successfully');
@@ -369,20 +417,42 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!editingTool) return;
     const formData = new FormData(e.currentTarget);
+    
+    const gallery = (formData.get('gallery') as string)?.split('\n').filter(f => f.trim()) || [];
+    
+    const bundles = [
+      { 
+        name: formData.get('bundle1_name') as string, 
+        price: Number(formData.get('bundle1_price')), 
+        isPopular: formData.get('popular_bundle') === '1' 
+      },
+      { 
+        name: formData.get('bundle2_name') as string, 
+        price: Number(formData.get('bundle2_price')), 
+        isPopular: formData.get('popular_bundle') === '2' 
+      },
+      { 
+        name: formData.get('bundle3_name') as string, 
+        price: Number(formData.get('bundle3_price')), 
+        isPopular: formData.get('popular_bundle') === '3' 
+      }
+    ];
+
     const updatedTool: Tool = {
       ...editingTool,
       title: formData.get('title') as string,
-      category: formData.get('category') as string,
       price: Number(formData.get('price')),
       originalPrice: Number(formData.get('originalPrice')),
-      rating: Number(formData.get('rating')),
-      reviews: Number(formData.get('reviews') || 0),
       image: formData.get('image') as string || previewImage || editingTool.image,
       description: formData.get('description') as string,
-      features: (formData.get('features') as string)?.split('\n').filter(f => f.trim()),
-      whatsIncluded: (formData.get('whatsIncluded') as string)?.split('\n').filter(f => f.trim()),
-      sourceUrl: formData.get('sourceUrl') as string,
-      password: formData.get('password') as string
+      gallery,
+      bundles,
+      fakeReview: {
+        userName: formData.get('fakeReview_user') as string || editingTool.fakeReview?.userName || 'Emily R.',
+        rating: 5,
+        comment: formData.get('fakeReview_comment') as string || editingTool.fakeReview?.comment || '',
+        date: editingTool.fakeReview?.date || new Date().toISOString()
+      }
     };
 
     try {
@@ -645,8 +715,15 @@ export default function AdminDashboard() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${user.isGuest ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-700'}`}>
-                      {user.isGuest ? 'Guest' : 'Member'}
+                    <span className={cn(
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                      user.isGuest 
+                        ? "bg-slate-100 text-slate-600" 
+                        : user.vipStatus === 'active'
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-blue-100 text-blue-700"
+                    )}>
+                      {user.isGuest ? 'Guest' : user.vipStatus === 'active' ? 'VIP Member' : 'Member'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-slate-500">
@@ -1251,7 +1328,9 @@ export default function AdminDashboard() {
                   <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">User</th>
                   <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Course</th>
                   <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
                   <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Date</th>
+                  <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1270,9 +1349,59 @@ export default function AdminDashboard() {
                       <span className="text-sm font-black text-slate-900">${order.amount}</span>
                     </td>
                     <td className="px-6 py-4">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        order.status === 'Completed' ? "bg-green-100 text-green-600" :
+                        order.status === 'Rejected' ? "bg-red-100 text-red-600" :
+                        "bg-yellow-100 text-yellow-600"
+                      )}>
+                        {order.status || 'Pending'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
                       <span className="text-xs text-slate-500">
                         {order.timestamp?.toDate().toLocaleString()}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {(order.status === 'Pending' || !order.status) && (
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={async () => {
+                              try {
+                                await walletService.updateCourseOrderStatus(order.id!, 'Completed');
+                                toast.success('Course order approved');
+                                // Refresh orders
+                                const updated = await walletService.getAllCourseOrders();
+                                setCourseOrders(updated);
+                              } catch (e) {
+                                toast.error('Failed to approve order');
+                              }
+                            }}
+                            className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
+                            title="Approve Order"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={async () => {
+                              try {
+                                await walletService.updateCourseOrderStatus(order.id!, 'Rejected');
+                                toast.success('Course order rejected');
+                                // Refresh orders
+                                const updated = await walletService.getAllCourseOrders();
+                                setCourseOrders(updated);
+                              } catch (e) {
+                                toast.error('Failed to reject order');
+                              }
+                            }}
+                            className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                            title="Reject Order"
+                          >
+                            <Ban className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1801,6 +1930,10 @@ export default function AdminDashboard() {
                     />
                   </th>
                   <th className="px-6 py-4">User</th>
+                  <th className="px-6 py-4">Balance</th>
+                  <th className="px-6 py-4">VIP Renewals</th>
+                  <th className="px-6 py-4">Lifetime Deposit</th>
+                  <th className="px-6 py-4">Lifetime Clicks</th>
                   <th className="px-6 py-4">Role</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Last Login</th>
@@ -1843,6 +1976,18 @@ export default function AdminDashboard() {
                           <p className="text-xs text-slate-500">{user.email}</p>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-slate-900">
+                      ${(user.walletBalance || 0).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500">
+                      {user.vipRenewalCount || 0}
+                    </td>
+                    <td className="px-6 py-4 font-bold text-green-600">
+                      ${(user.lifetimeDeposit || 0).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500">
+                      {user.lifetimeClicks || 0}
                     </td>
                     <td className="px-6 py-4">
                       <select 
@@ -2753,6 +2898,183 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Manage VIP Coupons Section */}
+        <div id="manage-vip-coupons" className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="rounded-lg bg-indigo-50 p-2">
+              <Tag className="h-5 w-5 text-indigo-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Manage VIP Coupons</h2>
+          </div>
+
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Coupon Code</label>
+                <input 
+                  type="text"
+                  value={vipCouponForm.code}
+                  onChange={(e) => setVipCouponForm({ ...vipCouponForm, code: e.target.value.toUpperCase() })}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                  placeholder="e.g. VIP50"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Discount (%)</label>
+                <input 
+                  type="number"
+                  value={vipCouponForm.discount}
+                  onChange={(e) => setVipCouponForm({ ...vipCouponForm, discount: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                  placeholder="e.g. 50"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Expiry Date</label>
+                <input 
+                  type="datetime-local"
+                  value={vipCouponForm.expiryDate}
+                  onChange={(e) => setVipCouponForm({ ...vipCouponForm, expiryDate: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div className="flex items-end gap-2">
+                <button 
+                  type="button"
+                  onClick={async () => {
+                    const { code, discount, expiryDate } = vipCouponForm;
+                    const trimmedCode = code.trim();
+                    const numDiscount = Number(discount);
+                    
+                    if (trimmedCode && numDiscount > 0) {
+                      const isDuplicate = (settings.vipCoupons || []).some((c, idx) => 
+                        idx !== editingVipCouponIndex && c.code === trimmedCode
+                      );
+                      
+                      if (isDuplicate) {
+                        toast.error('Coupon code already exists');
+                        return;
+                      }
+
+                      let newCoupons;
+                      if (editingVipCouponIndex !== null) {
+                        newCoupons = (settings.vipCoupons || []).map((c, idx) => 
+                          idx === editingVipCouponIndex ? { ...c, code: trimmedCode, discount: numDiscount, expiryDate: expiryDate || undefined } : c
+                        );
+                      } else {
+                        newCoupons = [...(settings.vipCoupons || []), { code: trimmedCode, discount: numDiscount, isActive: true, expiryDate: expiryDate || undefined }];
+                      }
+
+                      const newSettings = { ...settings, vipCoupons: newCoupons };
+                      setSettings(newSettings);
+                      
+                      const result = await settingsService.updateSettings(newSettings);
+                      if (!result.error) {
+                        toast.success(editingVipCouponIndex !== null ? 'VIP coupon updated' : 'VIP coupon added');
+                        setVipCouponForm({ code: '', discount: '', expiryDate: '' });
+                        setEditingVipCouponIndex(null);
+                      } else {
+                        toast.error('Failed to save to database');
+                      }
+                    } else {
+                      toast.error('Please enter a valid code and discount');
+                    }
+                  }}
+                  className={cn(
+                    "w-full rounded-xl py-3 text-sm font-bold text-white transition-all",
+                    editingVipCouponIndex !== null ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-900 hover:bg-slate-800"
+                  )}
+                >
+                  {editingVipCouponIndex !== null ? 'Update' : 'Add'}
+                </button>
+                {editingVipCouponIndex !== null && (
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setVipCouponForm({ code: '', discount: '', expiryDate: '' });
+                      setEditingVipCouponIndex(null);
+                    }}
+                    className="rounded-xl bg-slate-100 p-3 text-slate-600 hover:bg-slate-200"
+                  >
+                    <CloseIcon className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="min-w-[600px] w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                  <tr>
+                    <th className="px-6 py-3">Code</th>
+                    <th className="px-6 py-3">Discount</th>
+                    <th className="px-6 py-3">Expiry</th>
+                    <th className="px-6 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(settings.vipCoupons || []).map((coupon, i) => {
+                    const isExpired = coupon.expiryDate && new Date(coupon.expiryDate) < new Date();
+                    return (
+                      <tr key={i}>
+                        <td className="px-6 py-4 font-bold text-slate-900">{coupon.code}</td>
+                        <td className="px-6 py-4 text-slate-600">{coupon.discount}%</td>
+                        <td className="px-6 py-4 text-slate-600">
+                          {coupon.expiryDate ? (
+                            <span className={`inline-flex items-center gap-1 text-xs ${isExpired ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
+                              <Clock className="h-3 w-3" />
+                              {new Date(coupon.expiryDate).toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">No Expiry</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setVipCouponForm({
+                                  code: coupon.code,
+                                  discount: String(coupon.discount),
+                                  expiryDate: coupon.expiryDate || ''
+                                });
+                                setEditingVipCouponIndex(i);
+                                document.getElementById('manage-vip-coupons')?.scrollIntoView({ behavior: 'smooth' });
+                              }}
+                              className="text-slate-400 hover:text-blue-600 transition-colors"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={async () => {
+                                const newCoupons = (settings.vipCoupons || []).filter((_, idx) => idx !== i);
+                                const newSettings = { ...settings, vipCoupons: newCoupons };
+                                setSettings(newSettings);
+                                await settingsService.updateSettings(newSettings);
+                                toast.success('Coupon deleted');
+                              }}
+                              className="text-slate-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {(!settings.vipCoupons || settings.vipCoupons.length === 0) && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No VIP coupons created yet</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         {/* Featured Tools Section */}
         <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="mb-6 flex items-center gap-3">
@@ -2924,6 +3246,7 @@ export default function AdminDashboard() {
             >
               <BookOpen className="h-4 w-4" />
               Course Orders
+              <Badge count={pendingCourseOrders} />
             </button>
             <button 
               onClick={() => setActiveTab('tool-orders')}
@@ -2931,6 +3254,7 @@ export default function AdminDashboard() {
             >
               <ShoppingCart className="h-4 w-4" />
               Tool Orders
+              <Badge count={pendingToolOrders} />
             </button>
             <button 
               onClick={() => setActiveTab('vip')}
@@ -2938,6 +3262,7 @@ export default function AdminDashboard() {
             >
               <StarIcon className="h-4 w-4" />
               VIP Management
+              <Badge count={pendingVIPRequests} />
             </button>
           </div>
 
@@ -2950,6 +3275,7 @@ export default function AdminDashboard() {
             >
               <ShieldCheck className="h-4 w-4" />
               Payment Proofs
+              <Badge count={pendingDeposits} />
             </button>
             <button 
               onClick={() => setActiveTab('withdrawals')}
@@ -2957,6 +3283,7 @@ export default function AdminDashboard() {
             >
               <DollarSign className="h-4 w-4" />
               Withdrawals
+              <Badge count={pendingWithdrawals} />
             </button>
             <button 
               onClick={() => setActiveTab('wallet')}
@@ -2964,6 +3291,7 @@ export default function AdminDashboard() {
             >
               <Wallet className="h-4 w-4" />
               Wallet
+              <Badge count={pendingDeposits + pendingWithdrawals} />
             </button>
           </div>
         </nav>
@@ -3261,35 +3589,11 @@ export default function AdminDashboard() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-sm font-semibold text-slate-700">Category</label>
-                      <input 
-                        name="category" 
-                        required
-                        defaultValue={editingTool?.category}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                        placeholder="e.g. SEO"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-semibold text-slate-700">Rating (1-5)</label>
-                      <input 
-                        name="rating" 
-                        type="number" 
-                        step="0.1"
-                        min="1" 
-                        max="5" 
-                        defaultValue={editingTool?.rating || 5}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-sm font-semibold text-slate-700">Price</label>
+                      <label className="text-sm font-semibold text-slate-700">Sale Price</label>
                       <input 
                         name="price" 
                         type="number" 
+                        step="0.01"
                         required 
                         defaultValue={editingTool?.price}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
@@ -3301,6 +3605,7 @@ export default function AdminDashboard() {
                       <input 
                         name="originalPrice" 
                         type="number" 
+                        step="0.01"
                         defaultValue={editingTool?.originalPrice}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
                         placeholder="89.99"
@@ -3308,26 +3613,44 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-sm font-semibold text-slate-700">Image URL</label>
-                      <input 
-                        name="image" 
-                        defaultValue={editingTool?.image}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                        placeholder="https://images.unsplash.com/..."
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-semibold text-slate-700">Review Count</label>
-                      <input 
-                        name="reviews" 
-                        type="number" 
-                        defaultValue={editingTool?.reviews || 0}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                        placeholder="e.g. 128"
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Thumbnail Image URL</label>
+                    <input 
+                      name="image" 
+                      defaultValue={editingTool?.image}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                      placeholder="https://images.unsplash.com/..."
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Gallery Photos (One URL per line)</label>
+                    <textarea 
+                      name="gallery" 
+                      rows={4}
+                      defaultValue={editingTool?.gallery?.join('\n')}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none font-mono"
+                      placeholder="https://image1.jpg&#10;https://image2.jpg"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Fake Review Comment</label>
+                    <textarea 
+                      name="fakeReview_comment" 
+                      rows={3}
+                      defaultValue={editingTool?.fakeReview?.comment}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                      placeholder="e.g. This tool is amazing! Highly recommend."
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Fake Review User Name</label>
+                    <input 
+                      name="fakeReview_user" 
+                      defaultValue={editingTool?.fakeReview?.userName || 'Emily R.'}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                    />
                   </div>
                 </div>
 
@@ -3344,46 +3667,72 @@ export default function AdminDashboard() {
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-sm font-semibold text-slate-700">Features (One per line)</label>
-                    <textarea 
-                      name="features" 
-                      rows={4}
-                      defaultValue={editingTool?.features?.join('\n')}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none font-mono"
-                      placeholder="Feature 1&#10;Feature 2&#10;..."
-                    />
-                  </div>
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Bundle & Save</h3>
+                    
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input 
+                          name="bundle1_name" 
+                          placeholder="Bundle 1 Name"
+                          defaultValue={editingTool?.bundles?.[0]?.name || 'BUY 1 GET 40% OFF'}
+                          className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none"
+                        />
+                        <input 
+                          name="bundle1_price" 
+                          type="number"
+                          step="0.01"
+                          placeholder="Price"
+                          defaultValue={editingTool?.bundles?.[0]?.price}
+                          className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input 
+                          name="bundle2_name" 
+                          placeholder="Bundle 2 Name"
+                          defaultValue={editingTool?.bundles?.[1]?.name || 'BUY 2 GET 50% OFF'}
+                          className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none"
+                        />
+                        <input 
+                          name="bundle2_price" 
+                          type="number"
+                          step="0.01"
+                          placeholder="Price"
+                          defaultValue={editingTool?.bundles?.[1]?.price}
+                          className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input 
+                          name="bundle3_name" 
+                          placeholder="Bundle 3 Name"
+                          defaultValue={editingTool?.bundles?.[2]?.name || 'BUY 3 GET 60% OFF'}
+                          className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none"
+                        />
+                        <input 
+                          name="bundle3_price" 
+                          type="number"
+                          step="0.01"
+                          placeholder="Price"
+                          defaultValue={editingTool?.bundles?.[2]?.price}
+                          className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none"
+                        />
+                      </div>
+                    </div>
 
-                  <div className="space-y-1">
-                    <label className="text-sm font-semibold text-slate-700">What's Included (One per line)</label>
-                    <textarea 
-                      name="whatsIncluded" 
-                      rows={4}
-                      defaultValue={editingTool?.whatsIncluded?.join('\n')}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none font-mono"
-                      placeholder="e.g. Full Source Code Access&#10;Lifetime Free Updates&#10;..."
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-sm font-semibold text-slate-700">Download/Source Link</label>
-                    <input 
-                      name="sourceUrl" 
-                      defaultValue={editingTool?.sourceUrl}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                      placeholder="https://mega.nz/..."
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-sm font-semibold text-slate-700">Tool Password (Optional)</label>
-                    <input 
-                      name="password" 
-                      defaultValue={editingTool?.password}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                      placeholder="e.g. 123456"
-                    />
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">Most Popular Bundle</label>
+                      <select 
+                        name="popular_bundle"
+                        defaultValue={editingTool?.bundles?.findIndex(b => b.isPopular) + 1 || 2}
+                        className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none"
+                      >
+                        <option value="1">Bundle 1</option>
+                        <option value="2">Bundle 2</option>
+                        <option value="3">Bundle 3</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>

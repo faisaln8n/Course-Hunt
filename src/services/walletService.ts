@@ -68,6 +68,7 @@ export interface CourseOrder {
   courseId: string;
   courseTitle: string;
   amount: number;
+  status: 'Pending' | 'Completed' | 'Rejected';
   timestamp: any;
 }
 
@@ -270,7 +271,8 @@ export const walletService = {
 
         const userRef = doc(db, 'users', requestData.userId);
         await updateDoc(userRef, {
-          walletBalance: increment(finalAmount)
+          walletBalance: increment(finalAmount),
+          lifetimeDeposit: increment(requestData.amount)
         });
 
         await addDoc(collection(db, 'transactions'), {
@@ -379,10 +381,9 @@ export const walletService = {
         throw new Error('Insufficient balance');
       }
 
-      // Update user balance and purchased courses list (keeping for compatibility)
+      // Update user balance
       await updateDoc(userRef, {
-        walletBalance: increment(-amount),
-        purchasedCourses: arrayUnion(courseId)
+        walletBalance: increment(-amount)
       });
 
       // Create course order
@@ -392,6 +393,7 @@ export const walletService = {
         courseId,
         courseTitle,
         amount,
+        status: 'Pending',
         timestamp: serverTimestamp()
       });
 
@@ -450,10 +452,9 @@ export const walletService = {
       const coursesToPurchase = items.filter(i => i.type === 'course');
       const toolOrdersToCreate = items.filter(i => i.type === 'tool');
 
-      // Update user balance and purchased courses list
+      // Update user balance
       await updateDoc(userRef, {
-        walletBalance: increment(-totalAmount),
-        purchasedCourses: arrayUnion(...coursesToPurchase.map(c => c.id))
+        walletBalance: increment(-totalAmount)
       });
 
       // Create course orders
@@ -464,6 +465,7 @@ export const walletService = {
           courseId: course.id,
           courseTitle: course.title,
           amount: course.price,
+          status: 'Pending',
           timestamp: serverTimestamp()
         });
       }
@@ -686,6 +688,45 @@ export const walletService = {
       return { success: true };
     } catch (error: any) {
       console.error('Error updating tool order status:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  async updateCourseOrderStatus(orderId: string, status: CourseOrder['status']): Promise<{ success: boolean; error?: string }> {
+    try {
+      const orderRef = doc(db, 'course_orders', orderId);
+      const orderDoc = await getDoc(orderRef);
+      
+      if (!orderDoc.exists()) throw new Error('Order not found');
+      const orderData = orderDoc.data() as CourseOrder;
+
+      await updateDoc(orderRef, { status });
+
+      if (status === 'Completed') {
+        // Grant access to the course
+        const userRef = doc(db, 'users', orderData.userId);
+        await updateDoc(userRef, {
+          purchasedCourses: arrayUnion(orderData.courseId)
+        });
+      } else if (status === 'Rejected') {
+        // Refund the wallet balance
+        const userRef = doc(db, 'users', orderData.userId);
+        await updateDoc(userRef, {
+          walletBalance: increment(orderData.amount)
+        });
+
+        await addDoc(collection(db, 'transactions'), {
+          userId: orderData.userId,
+          amount: orderData.amount,
+          type: 'refund',
+          description: `Course order rejected - funds refunded: ${orderData.courseTitle}`,
+          timestamp: serverTimestamp()
+        });
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error updating course order status:', error);
       return { success: false, error: error.message };
     }
   }

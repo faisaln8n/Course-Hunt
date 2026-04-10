@@ -23,6 +23,7 @@ import { cartService } from './services/cartService';
 import { toolService } from './services/toolService';
 import { settingsService, AppSettings } from './services/settingsService';
 import { Tool } from './data/tools';
+import { analyticsService } from './services/analyticsService';
 import { walletService } from './services/walletService';
 import { Toaster, toast } from 'sonner';
 
@@ -34,6 +35,9 @@ export default function Tools() {
   const { user, logout } = useUserAuth();
   const navigate = useNavigate();
   const [tools, setTools] = useState<Tool[]>([]);
+  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [filteredTools, setFilteredTools] = useState<Tool[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -48,12 +52,15 @@ export default function Tools() {
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      const [fetchedSettings, fetchedTools] = await Promise.all([
+      // 1. Use optimized services with internal caching
+      const [fetchedSettings, toolsResult] = await Promise.all([
         settingsService.getSettings(),
         toolService.getTools()
       ]);
       setSettings(fetchedSettings);
-      setTools(fetchedTools);
+      setTools(toolsResult.tools);
+      setLastDoc(toolsResult.lastDoc);
+      setHasMore(!!toolsResult.lastDoc);
       setIsLoading(false);
     };
     loadData();
@@ -72,13 +79,29 @@ export default function Tools() {
   }, []);
 
   const updateCartItems = async () => {
-    const allTools = await toolService.getTools();
+    // 2. Use cached tools for cart display to avoid extra reads
+    const allTools = await toolService.getAllToolsRaw();
     const cartItems = cartService.getCartItems();
     const items = cartItems
       .filter(item => item.type === 'tool')
       .map(item => allTools.find(t => t.id === item.id))
       .filter((t): t is Tool => !!t);
     setCartItems(items);
+  };
+
+  const loadMoreTools = async () => {
+    if (isLoadingMore || !lastDoc) return;
+    setIsLoadingMore(true);
+    try {
+      const result = await toolService.getTools(lastDoc);
+      setTools(prev => [...prev, ...result.tools]);
+      setLastDoc(result.lastDoc);
+      setHasMore(!!result.lastDoc);
+    } catch (error) {
+      console.error('Error loading more tools:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
   };
 
   useEffect(() => {
@@ -264,7 +287,10 @@ export default function Tools() {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   className="bg-transparent overflow-hidden transition-all group flex flex-col cursor-pointer"
-                  onClick={() => navigate(`/tool/${tool.id}`)}
+                  onClick={() => {
+                    analyticsService.recordClick(tool.id, 'tool');
+                    navigate(`/tool/${tool.id}`);
+                  }}
                 >
                   <div className="relative aspect-square overflow-hidden rounded-md mb-4 shadow-sm border border-slate-100 bg-white">
                     <img 
@@ -305,13 +331,14 @@ export default function Tools() {
               ))}
             </div>
 
-            {filteredTools.length > visibleCount && (
+            {hasMore && (
               <div className="flex justify-center mt-16">
                 <button
-                  onClick={() => setVisibleCount(prev => prev + 12)}
+                  onClick={loadMoreTools}
+                  disabled={isLoadingMore}
                   className="px-12 py-4 bg-white border border-slate-200 rounded-xl font-bold uppercase tracking-widest text-slate-900 hover:border-[#FF6B35] hover:text-[#FF6B35] transition-all shadow-sm active:scale-95"
                 >
-                  See More
+                  {isLoadingMore ? 'Loading...' : 'See More Tools'}
                 </button>
               </div>
             )}

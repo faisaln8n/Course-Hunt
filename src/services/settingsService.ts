@@ -12,12 +12,12 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
+import { cache } from '../lib/cache';
 
 const SETTINGS_COLLECTION = 'settings';
 const APP_SETTINGS_DOC = 'app';
-const ANNOUNCEMENTS_DOC = 'announcements';
-const CATEGORIES_DOC = 'categories';
-const COUPONS_COLLECTION = 'coupons';
+const CACHE_KEY_SETTINGS = 'cached_app_settings';
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes for settings
 
 export interface Coupon {
   code: string;
@@ -43,6 +43,7 @@ export interface AppSettings {
   coupons: Coupon[];
   depositCoupons: DepositCoupon[];
   toolCoupons?: Coupon[];
+  vipCoupons?: Coupon[];
   featuredToolIds?: string[];
 }
 
@@ -55,17 +56,29 @@ export const settingsService = {
       categories: ['Development', 'Design', 'Marketing', 'Business'],
       coupons: [],
       depositCoupons: [],
-      toolCoupons: []
+      toolCoupons: [],
+      vipCoupons: []
     };
   },
 
+  /**
+   * Fetches app settings with caching.
+   * Settings are global and change infrequently, making them ideal for caching.
+   */
   async getSettings(): Promise<AppSettings> {
+    // 1. Check cache first
+    const cached = cache.get<AppSettings>(CACHE_KEY_SETTINGS);
+    if (cached) {
+      console.log('Serving settings from cache');
+      return cached;
+    }
+
     try {
       const docRef = doc(db, SETTINGS_COLLECTION, APP_SETTINGS_DOC);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
-        return {
+        const settings = {
           announcement: data.announcement || '',
           announcementLink: data.announcementLink || '',
           announcementCountdown: data.announcementCountdown || '',
@@ -73,8 +86,13 @@ export const settingsService = {
           coupons: data.coupons || [],
           depositCoupons: data.depositCoupons || [],
           toolCoupons: data.toolCoupons || [],
+          vipCoupons: data.vipCoupons || [],
           featuredToolIds: data.featuredToolIds || []
         };
+        
+        // 2. Cache the settings
+        cache.set(CACHE_KEY_SETTINGS, settings, CACHE_TTL);
+        return settings;
       }
       return this.getDefaultSettings();
     } catch (error) {
@@ -94,6 +112,10 @@ export const settingsService = {
         ...sanitizedSettings,
         updatedAt: serverTimestamp()
       });
+      
+      // 3. Invalidate cache on update
+      cache.remove(CACHE_KEY_SETTINGS);
+      
       window.dispatchEvent(new Event('settings-updated'));
       return { error: null };
     } catch (error) {

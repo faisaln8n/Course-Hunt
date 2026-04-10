@@ -8,42 +8,109 @@ import {
   deleteDoc, 
   query, 
   orderBy,
-  serverTimestamp
+  limit,
+  startAfter,
+  serverTimestamp,
+  QueryDocumentSnapshot,
+  DocumentData
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../firebase';
 import { Tool } from '../data/tools';
 import { Review } from '../data/courses';
+import { cache } from '../lib/cache';
 
 const TOOLS_COLLECTION = 'tools';
 const REVIEWS_COLLECTION = 'reviews';
+const CACHE_KEY_TOOLS = 'cached_tools';
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 export const toolService = {
-  async getTools(): Promise<Tool[]> {
+  /**
+   * Fetches tools with caching and optional pagination.
+   * Caching ensures that repeated visits to the tools page don't consume extra read quota.
+   */
+  async getTools(lastDoc?: QueryDocumentSnapshot<DocumentData>): Promise<{ tools: Tool[], lastDoc?: QueryDocumentSnapshot<DocumentData> }> {
+    // 1. Check cache first for first page
+    if (!lastDoc) {
+      const cached = cache.get<Tool[]>(CACHE_KEY_TOOLS);
+      if (cached) {
+        console.log('Serving tools from cache');
+        return { tools: cached };
+      }
+    }
+
     try {
-      const q = query(collection(db, TOOLS_COLLECTION), orderBy('title', 'asc'));
+      // 2. Use limit() to only fetch a small batch of tools at a time
+      let q = query(
+        collection(db, TOOLS_COLLECTION), 
+        orderBy('title', 'asc'),
+        limit(20)
+      );
+
+      if (lastDoc) {
+        q = query(q, startAfter(lastDoc));
+      }
+
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
+      const tools = querySnapshot.docs.map(doc => ({
         ...doc.data() as any,
         id: doc.id
       })) as Tool[];
+
+      // 3. Cache the results to prevent redundant reads
+      if (!lastDoc) {
+        cache.set(CACHE_KEY_TOOLS, tools, CACHE_TTL);
+      }
+
+      return { 
+        tools, 
+        lastDoc: querySnapshot.docs[querySnapshot.docs.length - 1] 
+      };
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, TOOLS_COLLECTION);
-      return [];
+      return { tools: [] };
     }
   },
 
-  async getToolById(id: string): Promise<Tool | undefined> {
+  async getToolById(id: string | number): Promise<Tool | undefined> {
+    const cacheKey = `tool_id_${id}`;
+    const cached = cache.get<Tool>(cacheKey);
+    if (cached) return cached;
+
     const path = `${TOOLS_COLLECTION}/${id}`;
     try {
-      const docRef = doc(db, TOOLS_COLLECTION, id);
+      const docRef = doc(db, TOOLS_COLLECTION, String(id));
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        return { ...docSnap.data(), id: docSnap.id } as Tool;
+        const data = { ...docSnap.data(), id: docSnap.id } as unknown as Tool;
+        cache.set(cacheKey, data, 30 * 60 * 1000); // 30 mins
+        return data;
       }
       return undefined;
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, path);
       return undefined;
+    }
+  },
+
+  async getAllToolsRaw(): Promise<Tool[]> {
+    const cacheKey = `${CACHE_KEY_TOOLS}_all`;
+    const cached = cache.get<Tool[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const q = query(collection(db, TOOLS_COLLECTION), orderBy('title', 'asc'));
+      const querySnapshot = await getDocs(q);
+      const tools = querySnapshot.docs.map(doc => ({
+        ...doc.data() as any,
+        id: doc.id
+      })) as Tool[];
+      
+      cache.set(cacheKey, tools, CACHE_TTL);
+      return tools;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, TOOLS_COLLECTION);
+      return [];
     }
   },
 

@@ -22,6 +22,7 @@ import {
   Plus,
   Tag
 } from 'lucide-react';
+import { analyticsService } from './services/analyticsService';
 import { toolService } from './services/toolService';
 import { Tool } from './data/tools';
 import { Review } from './data/courses';
@@ -53,10 +54,11 @@ const ToolDetail: React.FC = () => {
   useEffect(() => {
     const fetchToolAndReviews = async () => {
       if (!slug) return;
-      const tools = await toolService.getTools();
-      const found = tools.find(t => String(t.id) === slug);
+      // slug is the ID in this case
+      const found = await toolService.getToolById(slug);
       if (found) {
         setTool(found);
+        analyticsService.recordClick(found.id, 'tool');
         setIsWishlisted(wishlistService.isInWishlist(String(found.id)));
         const fetchedReviews = await toolService.getReviews(String(found.id));
         setReviews(fetchedReviews);
@@ -147,7 +149,19 @@ const ToolDetail: React.FC = () => {
 
   if (!tool) return null;
 
-  const gallery = [tool.image, ...Array(4).fill(tool.image)]; // Mock gallery for demo
+  const gallery = tool.gallery && tool.gallery.length > 0 ? tool.gallery : [tool.image];
+  const bundles = tool.bundles && tool.bundles.length > 0 ? tool.bundles.map((b, i) => ({
+    id: i + 1,
+    label: b.name,
+    price: b.price.toFixed(2),
+    original: (b.price * 1.5).toFixed(2), // Mock original price for bundles
+    shipping: "FREE SHIPPING",
+    popular: b.isPopular
+  })) : [
+    { id: 1, label: "BUY 1 GET 40% OFF", price: tool.price.toFixed(2), original: tool.originalPrice.toFixed(2), shipping: "FREE SHIPPING" },
+    { id: 2, label: "BUY 2 GET 50% OFF", price: (tool.price * 1.8).toFixed(2), original: (tool.originalPrice * 2).toFixed(2), shipping: "FREE SHIPPING", popular: true },
+    { id: 3, label: "BUY 3 GET 60% OFF", price: (tool.price * 2.5).toFixed(2), original: (tool.originalPrice * 3).toFixed(2), shipping: "FREE SHIPPING" }
+  ];
 
   return (
     <div className="min-h-screen bg-white pb-20 font-sans">
@@ -271,17 +285,15 @@ const ToolDetail: React.FC = () => {
                 {tool.description}
               </p>
 
-              <div className="space-y-1 pt-2">
-                {[
-                  "Reduces Anxiety",
-                  "Soft and huggable",
-                  "Promotes better sleep"
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                    <span className="text-slate-900">{item}</span>
-                  </div>
-                ))}
-              </div>
+              {tool.features && tool.features.length > 0 && (
+                <div className="space-y-1 pt-2">
+                  {tool.features.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                      <span className="text-slate-900">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Bundle & Save */}
@@ -293,11 +305,7 @@ const ToolDetail: React.FC = () => {
               </div>
 
               <div className="space-y-3">
-                {[
-                  { id: 1, label: "BUY 1 GET 40% OFF", price: tool.price, original: tool.originalPrice, shipping: "FREE SHIPPING" },
-                  { id: 2, label: "BUY 2 GET 50% OFF", price: (tool.price * 1.8).toFixed(2), original: (tool.originalPrice * 2).toFixed(2), shipping: "FREE SHIPPING", popular: true },
-                  { id: 3, label: "BUY 3 GET 60% OFF", price: (tool.price * 2.5).toFixed(2), original: (tool.originalPrice * 3).toFixed(2), shipping: "FREE SHIPPING" }
-                ].map((bundle) => (
+                {bundles.map((bundle) => (
                   <div 
                     key={bundle.id}
                     onClick={() => setSelectedBundle(bundle.id)}
@@ -341,16 +349,16 @@ const ToolDetail: React.FC = () => {
             <div className="p-4 bg-white border border-slate-100 rounded-xl space-y-3">
               <div className="flex items-center gap-3">
                 <img 
-                  src="https://api.dicebear.com/7.x/notionists/svg?seed=Emily" 
-                  alt="Emily" 
+                  src={`https://api.dicebear.com/7.x/notionists/svg?seed=${tool.fakeReview?.userName || 'Emily'}`} 
+                  alt={tool.fakeReview?.userName || 'Emily'} 
                   className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100" 
                 />
                 <div className="flex-1">
                   <p className="text-[11px] font-medium text-slate-600 italic leading-relaxed">
-                    "This plush toy has been a game-changer for my baby's sleep. Highly recommend!"
+                    "{tool.fakeReview?.comment || "This plush toy has been a game-changer for my baby's sleep. Highly recommend!"}"
                   </p>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] font-bold text-slate-400">Emily R.</span>
+                    <span className="text-[10px] font-bold text-slate-400">{tool.fakeReview?.userName || 'Emily R.'}</span>
                     <div className="flex text-yellow-400">
                       {[...Array(5)].map((_, i) => <Star key={i} className="w-2.5 h-2.5 fill-current" />)}
                     </div>

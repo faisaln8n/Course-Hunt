@@ -132,6 +132,9 @@ export default function Home() {
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(settingsService.getDefaultSettings());
   const [cartItems, setCartItems] = useState<Course[]>([]);
   const [isPurchasing, setIsPurchasing] = useState(false);
@@ -369,29 +372,35 @@ export default function Home() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      const [fetchedCourses, fetchedSettings] = await Promise.all([
+      setIsLoading(true);
+      // 1. Use the optimized getCourses and getSettings with internal caching
+      const [coursesResult, fetchedSettings] = await Promise.all([
         courseService.getCourses(),
         settingsService.getSettings()
       ]);
-      setCourses(fetchedCourses);
+      
+      setCourses(coursesResult.courses);
+      setLastDoc(coursesResult.lastDoc);
+      setHasMore(!!coursesResult.lastDoc);
       setSettings(fetchedSettings);
       setCartCount(cartService.getCartCount());
       
       const cartItems = cartService.getCartItems();
       const items = cartItems
         .filter(item => item.type === 'course')
-        .map(item => fetchedCourses.find(c => c.id === item.id))
+        .map(item => coursesResult.courses.find(c => c.id === item.id))
         .filter((c): c is Course => !!c);
       setCartItems(items);
       setIsLoading(false);
     };
 
-    const handleCartUpdate = () => {
+    const handleCartUpdate = async () => {
       setCartCount(cartService.getCartCount());
       const cartItems = cartService.getCartItems();
+      const allCourses = await courseService.getAllCoursesRaw();
       const items = cartItems
         .filter(item => item.type === 'course')
-        .map(item => courses.find(c => c.id === item.id))
+        .map(item => allCourses.find(c => c.id === item.id))
         .filter((c): c is Course => !!c);
       setCartItems(items);
     };
@@ -401,8 +410,8 @@ export default function Home() {
     };
     
     const handleCoursesUpdate = async () => {
-      const fetchedCourses = await courseService.getCourses();
-      setCourses(fetchedCourses);
+      const result = await courseService.getCourses();
+      setCourses(result.courses);
     };
 
     const handleSettingsUpdate = async () => {
@@ -497,6 +506,21 @@ export default function Home() {
     return parseFloat(priceStr.replace(/[^0-9.]/g, '')) || 0;
   };
 
+  const loadMoreCourses = async () => {
+    if (isLoadingMore || !lastDoc) return;
+    setIsLoadingMore(true);
+    try {
+      const result = await courseService.getCourses(lastDoc);
+      setCourses(prev => [...prev, ...result.courses]);
+      setLastDoc(result.lastDoc);
+      setHasMore(!!result.lastDoc);
+    } catch (error) {
+      console.error('Error loading more courses:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   const filteredCourses = courses.filter(course => {
     const matchesCategory = selectedCategory === "All" || course.category === selectedCategory;
     const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -514,7 +538,7 @@ export default function Home() {
     filteredCourses.sort((a, b) => parsePrice(b.price) - parsePrice(a.price));
   }
 
-  const ITEMS_PER_PAGE = typeof window !== 'undefined' && window.innerWidth < 768 ? 12 : 16;
+  const ITEMS_PER_PAGE = typeof window !== 'undefined' && window.innerWidth < 768 ? 10 : 16;
   const totalPages = Math.ceil(filteredCourses.length / ITEMS_PER_PAGE);
   const currentCourses = filteredCourses.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
@@ -754,38 +778,69 @@ export default function Home() {
       </motion.header>
 
       <main className="relative z-10 pt-8 md:pt-12 pb-16">
-        <section className="container mx-auto px-4 md:px-6 lg:px-8 text-center mb-16">
+        <section className="container mx-auto px-4 md:px-6 lg:px-8 text-center mb-16 relative">
+          {/* Decorative background elements */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-64 bg-gradient-to-b from-[#FF6B35]/5 to-transparent blur-3xl -z-10 pointer-events-none" />
+          
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.1 }}
+            className="mb-10"
+          >
+            <h1 className="text-[24px] sm:text-5xl md:text-7xl lg:text-8xl font-black text-gray-900 mb-4 tracking-tighter leading-none flex items-center justify-center gap-x-2 whitespace-nowrap">
+              <span className="relative inline-block">
+                <span className="absolute -left-3 -top-1 text-[#FF6B35]/20 text-3xl md:text-6xl font-serif">"</span>
+                Global Cheapest
+              </span>
+              <TypingText texts={["Courses", "Tools", "Skills"]} />
+              <span className="relative inline-block">
+                <span className="absolute -right-3 -bottom-1 text-[#FF6B35]/20 text-3xl md:text-6xl font-serif">"</span>
+              </span>
+            </h1>
+            <p className="text-gray-500 text-[10px] md:text-lg font-bold uppercase tracking-[0.2em] mt-6">
+              Your Ultimate Chance to Buy Premium Assets at Global Low Prices
+            </p>
+          </motion.div>
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }}
-            className="max-w-2xl mx-auto mb-8"
+            className="max-w-2xl mx-auto mb-12 relative group"
           >
+            {/* Animated glow effect */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-[#FF6B35] to-[#7C3AED] rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+            
             <motion.div 
-              className="relative"
+              className="relative bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100"
               whileFocus="focused"
             >
-              <motion.div
-                animate={{
-                  x: [0, 2, -2, 0],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-              >
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              </motion.div>
-              <motion.input
-                type="text"
-                placeholder="Search for tools..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FF6B35] focus:border-[#FF6B35] transition-all shadow-sm hover:shadow-md"
-                whileFocus={{ scale: 1.01 }}
-                transition={{ type: "spring", stiffness: 300 }}
-              />
+              <div className="flex items-center px-5">
+                <motion.div
+                  animate={{
+                    rotate: searchQuery ? [0, 10, -10, 0] : 0
+                  }}
+                  transition={{ duration: 0.5 }}
+                >
+                  <Search className="text-[#FF6B35] w-6 h-6 shrink-0" />
+                </motion.div>
+                <input
+                  type="text"
+                  placeholder="Search for tools, courses, or categories..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-4 pr-4 py-4 md:py-6 bg-transparent text-gray-900 placeholder-gray-400 focus:outline-none font-bold text-base md:text-xl"
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery('')}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
+                )}
+              </div>
             </motion.div>
           </motion.div>
 
@@ -793,7 +848,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.35, ease: "easeOut" }}
-            className="flex flex-wrap justify-center gap-2 md:gap-3 items-center max-w-4xl mx-auto"
+            className="flex flex-wrap justify-center gap-2 md:gap-4 items-center max-w-5xl mx-auto"
           >
             {(() => {
               const allCats = ["All", ...settings.categories];
@@ -813,13 +868,13 @@ export default function Home() {
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.4 + index * 0.05, type: "spring", stiffness: 300 }}
-                      whileHover={{ scale: 1.08, y: -2 }}
+                      whileHover={{ scale: 1.05, y: -3 }}
                       whileTap={{ scale: 0.95 }}
                       className={cn(
-                        "px-4 md:px-5 py-2 md:py-2.5 rounded-full text-xs md:text-sm font-medium transition-all shadow-sm whitespace-nowrap",
+                        "px-5 md:px-7 py-2.5 md:py-3.5 rounded-2xl text-xs md:text-base font-black transition-all shadow-sm whitespace-nowrap border-2",
                         selectedCategory === category
-                          ? "bg-[#FF6B35] text-black shadow-md"
-                          : "bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-300 hover:border-[#FF6B35]"
+                          ? "bg-gradient-to-r from-[#FF6B35] to-[#E85D04] text-white border-transparent shadow-lg shadow-orange-200"
+                          : "bg-white text-gray-600 hover:text-[#FF6B35] border-gray-100 hover:border-[#FF6B35] hover:shadow-md"
                       )}
                     >
                       {category}
@@ -832,9 +887,9 @@ export default function Home() {
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.4 + limit * 0.05, type: "spring", stiffness: 300 }}
-                      whileHover={{ scale: 1.08, y: -2 }}
+                      whileHover={{ scale: 1.05, y: -2 }}
                       whileTap={{ scale: 0.95 }}
-                      className="px-4 py-2 rounded-full text-xs font-bold bg-slate-100 text-[#FF6B35] border-2 border-slate-200 hover:border-[#FF6B35] transition-all shadow-sm whitespace-nowrap"
+                      className="px-5 py-2.5 rounded-2xl text-xs font-black bg-slate-50 text-[#FF6B35] border-2 border-slate-100 hover:border-[#FF6B35] transition-all shadow-sm whitespace-nowrap"
                     >
                       See More
                     </motion.button>
@@ -843,7 +898,7 @@ export default function Home() {
                   {isMobile && showAllCategories && (
                     <motion.button
                       onClick={() => setShowAllCategories(false)}
-                      className="px-4 py-2 rounded-full text-xs font-bold bg-slate-100 text-gray-500 border-2 border-slate-200 transition-all shadow-sm whitespace-nowrap"
+                      className="px-5 py-2.5 rounded-2xl text-xs font-black bg-slate-50 text-gray-500 border-2 border-slate-100 transition-all shadow-sm whitespace-nowrap"
                     >
                       Show Less
                     </motion.button>
@@ -906,7 +961,7 @@ export default function Home() {
         </section>
 
         <section className="container mx-auto px-4 md:px-6 lg:px-8 mb-16">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-6">
             {currentCourses.map((course, index) => {
               const slug = course.title
                 .toLowerCase()
@@ -934,7 +989,7 @@ export default function Home() {
                     }}
                     className="bg-white border-2 border-black rounded-xl overflow-hidden shadow-sm hover:shadow-xl hover:border-[#FF6B35]/30 transition-all duration-300 cursor-pointer h-full flex flex-col group"
                   >
-                    <div className="relative h-32 md:h-48 overflow-hidden">
+                    <div className="relative h-48 md:h-48 overflow-hidden">
                       <img
                         src={course.image || null}
                         alt={course.title}
@@ -980,7 +1035,7 @@ export default function Home() {
                       <h3 className="text-sm md:text-lg font-semibold text-gray-900 mb-1 md:mb-2 line-clamp-2">
                         {course.title}
                       </h3>
-                      <div className="flex items-center mb-2 md:mb-3">
+                      <div className="flex items-center mb-3 md:mb-3">
                         <div className="flex items-center">
                           {Array.from({ length: 5 }).map((_, i) => (
                             <motion.div
@@ -1000,37 +1055,37 @@ export default function Home() {
                         </div>
                         <span className="text-[10px] md:text-sm text-gray-500 ml-1 md:ml-2">({course.reviews})</span>
                       </div>
-                      <div className="flex items-center justify-between mt-auto">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] md:text-sm text-gray-400 line-through font-medium">{course.originalPrice}</span>
-                          <motion.span 
-                            className="text-lg md:text-2xl font-bold text-[#FF6B35]"
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.7 + index * 0.08 }}
-                          >{course.price}</motion.span>
+                      
+                      <div className="mt-auto space-y-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex flex-col">
+                            <span className="text-xs text-gray-400 line-through font-medium leading-none mb-1">{course.originalPrice}</span>
+                            <motion.span 
+                              className="text-2xl md:text-3xl font-black text-[#FF6B35] leading-none"
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: 0.7 + index * 0.08 }}
+                            >{course.price}</motion.span>
+                          </div>
+                          {(() => {
+                            const p = parseFloat(course.price.replace(/[^0-9.]/g, ''));
+                            const op = parseFloat(course.originalPrice.replace(/[^0-9.]/g, ''));
+                            if (op > p) {
+                              const discount = Math.round(((op - p) / op) * 100);
+                              return (
+                                <div className="bg-green-100 text-green-700 text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-tighter">
+                                  Save {discount}%
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
-                        <div className="flex items-center gap-1 md:gap-2">
+
+                        <div className="flex items-center gap-2">
                           <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              wishlistService.toggleWishlist(String(course.id));
-                            }}
-                            className={cn(
-                              "p-1.5 md:p-2 rounded-full border-2 transition-colors duration-300",
-                              wishlistItems.includes(String(course.id))
-                                ? "bg-red-50 border-red-200 text-red-500"
-                                : "bg-gray-50 border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-100"
-                            )}
-                          >
-                            <Heart className={cn("w-3.5 h-3.5 md:w-5 md:h-5", wishlistItems.includes(String(course.id)) && "fill-current")} />
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -1043,13 +1098,41 @@ export default function Home() {
                               window.dispatchEvent(new Event('open-cart'));
                             }}
                             className={cn(
-                              "flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl transition-all shadow-sm",
+                              "flex-1 flex items-center justify-center gap-2 h-12 md:h-12 rounded-xl font-black transition-all shadow-sm text-sm uppercase tracking-wider border-2",
                               cartService.isInCart(course.id, 'course') 
-                                ? "bg-gray-100 text-gray-400 cursor-default" 
-                                : "bg-[#FF6B35] text-black hover:shadow-md"
+                                ? "bg-gray-100 text-gray-400 border-gray-200 cursor-default" 
+                                : "bg-[#FF6B35] text-black border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]"
                             )}
                           >
-                            {cartService.isInCart(course.id, 'course') ? <Check className="w-4 h-4 md:w-5 md:h-5" /> : <Plus className="w-4 h-4 md:w-5 md:h-5" />}
+                            {cartService.isInCart(course.id, 'course') ? (
+                              <>
+                                <Check className="w-4 h-4" />
+                                <span>In Cart</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-4 h-4" />
+                                <span>Add to Cart</span>
+                              </>
+                            )}
+                          </motion.button>
+                          
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              wishlistService.toggleWishlist(String(course.id));
+                            }}
+                            className={cn(
+                              "w-12 h-12 flex items-center justify-center rounded-xl border-2 transition-all duration-300 shrink-0",
+                              wishlistItems.includes(String(course.id))
+                                ? "bg-red-50 border-red-200 text-red-500 shadow-inner"
+                                : "bg-white border-black text-gray-400 hover:text-red-500 hover:border-red-500 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]"
+                            )}
+                          >
+                            <Heart className={cn("w-5 h-5", wishlistItems.includes(String(course.id)) && "fill-current")} />
                           </motion.button>
                         </div>
                       </div>
@@ -1060,24 +1143,14 @@ export default function Home() {
             })}
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center space-x-4 mt-12">
+          {hasMore && (
+            <div className="flex justify-center items-center flex-wrap gap-3 mt-12 mb-20">
               <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 disabled:opacity-50 hover:bg-gray-200 transition-colors font-medium"
+                onClick={loadMoreCourses}
+                disabled={isLoadingMore}
+                className="px-12 py-4 rounded-xl bg-[#FF6B35] text-black border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:opacity-30 disabled:shadow-none disabled:translate-y-0 transition-all font-black text-sm uppercase tracking-widest active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
               >
-                Previous
-              </button>
-              <span className="text-gray-600 font-medium">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 rounded-lg bg-[#FF6B35] text-black disabled:opacity-50 hover:bg-opacity-90 transition-colors font-medium"
-              >
-                Next
+                {isLoadingMore ? 'Loading...' : 'Load More Courses'}
               </button>
             </div>
           )}

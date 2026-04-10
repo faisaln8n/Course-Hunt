@@ -8,6 +8,18 @@ export interface Tool {
   image: string;
   category: string;
   description: string;
+  gallery?: string[];
+  bundles?: {
+    name: string;
+    price: number;
+    isPopular?: boolean;
+  }[];
+  fakeReview?: {
+    userName: string;
+    rating: number;
+    comment: string;
+    date: string;
+  };
   features?: string[];
   whatsIncluded?: string[];
   sourceUrl?: string;

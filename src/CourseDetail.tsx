@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Info, Target, CheckCircle2, ShoppingCart, Plus, Check, X, Tag, Trash2, Star, Camera, MessageSquare, Send, User, LogOut, Heart, Megaphone, ChevronRight, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Info, Target, CheckCircle2, ShoppingCart, Plus, Check, X, Tag, Trash2, Star, Camera, MessageSquare, Send, User, LogOut, Heart, Megaphone, ChevronRight, ChevronDown, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { courseService } from './services/courseService';
 import { Course, Review } from './data/courses';
 import { cartService } from './services/cartService';
@@ -92,6 +92,8 @@ export default function CourseDetail() {
   const [reviewImagePreview, setReviewImagePreview] = useState<string | null>(null);
   const [visibleReviewsCount, setVisibleReviewsCount] = useState(20);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [selectedZoomImage, setSelectedZoomImage] = useState<string | null>(null);
+  const [zoomScale, setZoomScale] = useState(1);
   const courseId = course?.id;
 
   const slugify = (text: string) => {
@@ -105,12 +107,13 @@ export default function CourseDetail() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      const [allCourses, fetchedSettings] = await Promise.all([
-        courseService.getCourses(),
+      if (!slug) return;
+      
+      const [foundCourse, fetchedSettings] = await Promise.all([
+        courseService.getCourseBySlug(slug),
         settingsService.getSettings()
       ]);
       
-      const foundCourse = allCourses.find(c => slugify(c.title) === slug);
       setCourse(foundCourse);
       setSettings(fetchedSettings);
       
@@ -122,6 +125,10 @@ export default function CourseDetail() {
       setCartCount(cartService.getCartCount());
       
       const cartItems = cartService.getCartItems();
+      // For cart display, we might need all courses or just the ones in cart
+      // To save reads, we'll fetch only the courses in cart if needed
+      // But for now, we'll use the cached getAllCoursesRaw if we need to find them
+      const allCourses = await courseService.getAllCoursesRaw();
       const items = cartItems
         .filter(item => item.type === 'course')
         .map(item => allCourses.find(c => c.id === item.id))
@@ -133,7 +140,7 @@ export default function CourseDetail() {
 
     const handleCartUpdate = async () => {
       setCartCount(cartService.getCartCount());
-      const allCourses = await courseService.getCourses();
+      const allCourses = await courseService.getAllCoursesRaw();
       const cartItems = cartService.getCartItems();
       const items = cartItems
         .filter(item => item.type === 'course')
@@ -147,8 +154,8 @@ export default function CourseDetail() {
     };
     
     const handleCoursesUpdate = async () => {
-      const allCourses = await courseService.getCourses();
-      const foundCourse = allCourses.find(c => slugify(c.title) === slug);
+      if (!slug) return;
+      const foundCourse = await courseService.getCourseBySlug(slug);
       setCourse(foundCourse);
       if (foundCourse) {
         const fetchedReviews = await courseService.getReviews(foundCourse.id);
@@ -482,7 +489,6 @@ export default function CourseDetail() {
         </section>
 
         <section className="media-gallery">
-          <h2>Course Preview</h2>
           <div className="hero-image relative overflow-hidden rounded-2xl">
             <img 
               src={galleryImages[activeImage] || null} 
@@ -544,62 +550,87 @@ export default function CourseDetail() {
             <p className="text-lg leading-relaxed text-gray-700">
               {course.about || ""}
             </p>
-            
-            <div className="mt-12 overflow-hidden rounded-xl border border-indigo-100 bg-indigo-50/20">
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-700 px-6 py-3">
-                <h3 className="flex items-center gap-2 text-lg font-bold text-white">
-                  <Target className="h-5 w-5" />
-                  Course Objectives
-                </h3>
-              </div>
-              <div className="p-6">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {(course.objectives || []).map((objective, index) => (
-                    <div 
-                      key={index} 
-                      className="flex items-start gap-3 rounded-xl border border-indigo-100 bg-white p-4 transition-all hover:scale-[1.02] hover:shadow-md"
-                    >
-                      <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white">
-                        <CheckCircle2 className="h-4 w-4" />
-                      </div>
-                      <span className="font-medium text-gray-800">{objective}</span>
-                    </div>
-                  ))}
+          </div>
+        </section>
+
+        <section className="mb-12 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-700 px-6 py-4">
+            <h2 className="flex items-center gap-2 text-xl font-bold text-white">
+              <Target className="h-5 w-5" />
+              Course Objectives
+            </h2>
+          </div>
+          <div className="p-6 md:p-8">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {(course.objectives || []).map((objective, index) => (
+                <div 
+                  key={index} 
+                  className="flex items-start gap-3 rounded-xl border border-indigo-100 bg-white p-4 transition-all hover:scale-[1.02] hover:shadow-md"
+                >
+                  <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <span className="font-medium text-gray-800">{objective}</span>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
         </section>
 
         {fileProofs.length > 0 && (
           <section className="file-proofs">
-            <h2>Inside Look: Course Files</h2>
-            <p style={{ textAlign: 'center', color: '#555', marginBottom: '20px' }}>See exactly what you'll get access to instantly after purchase.</p>
-            <div className="proofs-grid">
-              {fileProofs.map((img, idx) => (
-                <img 
-                  key={idx} 
-                  src={img} 
-                  alt={`Course File Proof ${idx + 1}`} 
-                  className="proof-image" 
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = `https://picsum.photos/seed/${course.id}-proof-${idx}/400/300`;
-                  }}
-                />
-              ))}
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-4 rounded-t-2xl">
+              <h2 className="flex items-center justify-center gap-2 text-xl font-bold text-white m-0 border-none p-0">
+                <Camera className="h-5 w-5" />
+                Inside Look: Course Files
+              </h2>
+            </div>
+            <div className="p-4 md:p-8 bg-white border-x border-b border-slate-200 rounded-b-2xl">
+              <p className="text-center text-slate-500 font-medium mb-8">See exactly what you'll get access to instantly after purchase.</p>
+              <div className="proofs-grid">
+                {fileProofs.map((img, idx) => (
+                  <div 
+                    key={idx} 
+                    className="proof-item group cursor-zoom-in"
+                    onClick={() => {
+                      setSelectedZoomImage(img);
+                      setZoomScale(1);
+                    }}
+                  >
+                    <img 
+                      src={img} 
+                      alt={`Course File Proof ${idx + 1}`} 
+                      className="proof-image" 
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = `https://picsum.photos/seed/${course.id}-proof-${idx}/800/600`;
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none rounded-xl flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-3 rounded-full shadow-lg">
+                        <Maximize2 className="w-6 h-6 text-slate-900" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
         )}
 
 
 
-        <section className="pricing">
-          <h2>Course Price</h2>
-          <div className="price-container">
-            <span className="original-price">{course.originalPrice}</span>
-            <span className="price-amount">{course.price}</span>
+        <section className="pricing-compact">
+          <div className="price-card">
+            <div className="price-header">
+              <Tag className="w-5 h-5" />
+              <span>Investment</span>
+            </div>
+            <div className="price-body">
+              <span className="old-price">{course.originalPrice}</span>
+              <span className="new-price">{course.price}</span>
+            </div>
           </div>
         </section>
 
@@ -1099,6 +1130,77 @@ export default function CourseDetail() {
               )}
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+      {/* Image Lightbox with Zoom */}
+      <AnimatePresence>
+        {selectedZoomImage && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm p-4 md:p-8"
+            onClick={() => setSelectedZoomImage(null)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative max-w-full max-h-full flex flex-col items-center gap-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Controls */}
+              <div className="absolute -top-12 md:-top-16 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
+                <button 
+                  onClick={() => setZoomScale(prev => Math.max(0.5, prev - 0.25))}
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-5 h-5" />
+                </button>
+                <span className="text-white font-mono text-sm min-w-[3rem] text-center">
+                  {Math.round(zoomScale * 100)}%
+                </span>
+                <button 
+                  onClick={() => setZoomScale(prev => Math.min(3, prev + 0.25))}
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-5 h-5" />
+                </button>
+                <div className="w-[1px] h-4 bg-white/20 mx-1" />
+                <button 
+                  onClick={() => setSelectedZoomImage(null)}
+                  className="p-2 hover:bg-red-500/20 rounded-full transition-colors text-red-400"
+                  title="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="overflow-auto rounded-xl shadow-2xl bg-slate-900/50">
+                <motion.img 
+                  src={selectedZoomImage}
+                  alt="Zoomed view"
+                  animate={{ scale: zoomScale }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  className="max-w-full h-auto cursor-grab active:cursor-grabbing origin-center"
+                  style={{ 
+                    maxHeight: '80vh',
+                    boxShadow: '0 0 50px rgba(0,0,0,0.5)'
+                  }}
+                  onWheel={(e) => {
+                    if (e.deltaY < 0) setZoomScale(prev => Math.min(3, prev + 0.1));
+                    else setZoomScale(prev => Math.max(0.5, prev - 0.1));
+                  }}
+                />
+              </div>
+
+              <p className="text-white/60 text-xs font-medium tracking-widest uppercase">
+                Use mouse wheel or buttons to zoom • Click outside to close
+              </p>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

@@ -8,7 +8,8 @@ import {
   query, 
   orderBy,
   serverTimestamp,
-  where
+  where,
+  increment
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../firebase';
 import { walletService } from './walletService';
@@ -24,6 +25,7 @@ export interface VIPRequest {
   telegramUsername: string;
   whatsappNumber: string;
   amount: number;
+  couponCode?: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: any;
   updatedAt: any;
@@ -37,6 +39,7 @@ export const vipService = {
     telegramUsername: string;
     whatsappNumber: string;
     amount: number;
+    couponCode?: string;
   }) {
     try {
       // 1. Check balance
@@ -96,7 +99,8 @@ export const vipService = {
       await userService.updateUserProfile(userId, {
         vipStatus: 'active',
         vipExpiryDate: expiryDate.toISOString(),
-        vipJoinDate: new Date().toISOString()
+        vipJoinDate: new Date().toISOString(),
+        vipRenewalCount: increment(1)
       });
 
       return { success: true };

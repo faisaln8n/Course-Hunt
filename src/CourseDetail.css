@@ -159,40 +159,33 @@
 /* File Proofs Section */
 .file-proofs {
     margin-bottom: 40px;
-    background-color: #f8faff;
-    padding: 30px;
-    border-radius: 12px;
-    border: 1px solid #e8f0ff;
-}
-
-.file-proofs h2 {
-    text-align: center;
-    color: #0052CC;
-    margin-bottom: 10px;
-    font-size: 1.8rem;
 }
 
 .proofs-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.proof-item {
+    position: relative;
+    width: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+    background-color: #f8fafc;
 }
 
 .proof-image {
     width: 100%;
-    height: 200px;
-    border-radius: 12px;
-    object-fit: cover;
+    height: auto;
     display: block;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    border: 2px solid #e8f0ff;
+    transition: transform 0.5s ease;
 }
 
-.proof-image:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0, 82, 204, 0.15);
-    border-color: #cce0ff;
+.proof-item:hover .proof-image {
+    transform: scale(1.01);
 }
 
 /* Curriculum Section */
@@ -261,41 +254,53 @@
 }
 
 /* Pricing Section */
-.pricing {
-    text-align: center;
-    margin-bottom: 40px;
-    padding: 40px 30px;
-    background: linear-gradient(135deg, #f0f4ff 0%, #e8f0ff 100%);
-    border-radius: 16px;
-    border: 1px solid #cce0ff;
+.pricing-compact {
+    margin-bottom: 32px;
+    display: flex;
+    justify-content: center;
 }
 
-.pricing h2 {
-    color: #0052CC;
-    margin-bottom: 15px;
-    font-size: 1.8rem;
+.price-card {
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 16px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
 }
 
-.price-container {
+.price-header {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 15px;
-    margin-bottom: 10px;
-}
-
-.original-price {
-    font-size: 1.8rem;
-    color: #888;
-    text-decoration: line-through;
-    font-weight: 500;
-}
-
-.price-amount {
-    font-size: 3.5rem;
+    gap: 8px;
+    color: #64748b;
+    font-size: 0.75rem;
     font-weight: 800;
-    color: #0052CC;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.price-body {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.old-price {
+    font-size: 1.25rem;
+    color: #94a3b8;
+    text-decoration: line-through;
+    font-weight: 600;
+}
+
+.new-price {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: -0.02em;
 }
 
 /* CTA Section */
@@ -412,31 +417,24 @@
     }
 
     .proofs-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
+        gap: 16px;
     }
 
-    .proof-image {
-        height: 120px;
-        border-radius: 8px;
+    .proof-item {
+        border-radius: 12px;
     }
 
-    .price-amount {
-        font-size: 2.5rem;
+    .new-price {
+        font-size: 2.25rem;
     }
 
-    .pricing {
-        padding: 25px 15px;
-    }
-
-    .whatsapp-btn {
+    .price-card {
+        padding: 12px 24px;
         width: 100%;
-        padding: 14px 20px;
-        font-size: 1.1rem;
     }
 
     .file-proofs {
-        padding: 20px 15px;
+        padding: 0;
     }
 }
 
@@ -445,8 +443,8 @@
         font-size: 1.25rem;
     }
 
-    .price-amount {
-        font-size: 2rem;
+    .new-price {
+        font-size: 1.75rem;
     }
 
     .original-price {

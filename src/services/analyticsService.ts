@@ -5,7 +5,10 @@ import {
   query, 
   orderBy,
   serverTimestamp,
-  Timestamp
+  Timestamp,
+  doc,
+  getDoc,
+  updateDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../firebase';
 
@@ -13,14 +16,15 @@ const CLICKS_COLLECTION = 'clicks';
 
 export interface ClickEvent {
   id: string;
-  courseId: string;
+  courseId?: string;
+  toolId?: string;
   uid: string | null;
   timestamp: Timestamp;
   trafficSource: string;
 }
 
 export const analyticsService = {
-  async recordClick(courseId: string | number) {
+  async recordClick(id: string | number, type: 'course' | 'tool' = 'course') {
     try {
       // Get traffic source from URL or referrer
       const urlParams = new URLSearchParams(window.location.search);
@@ -37,18 +41,38 @@ export const analyticsService = {
         else source = `Referral: ${referrer}`;
       }
 
-      // Check if this course has already been clicked in this session
-      const sessionKey = `clicked_${courseId}`;
+      // Check if this item has already been clicked in this session
+      const sessionKey = `clicked_${type}_${id}`;
       if (sessionStorage.getItem(sessionKey)) {
         return;
       }
 
-      await addDoc(collection(db, CLICKS_COLLECTION), {
-        courseId: String(courseId),
+      const clickData: any = {
         uid: auth.currentUser?.uid || null,
         timestamp: serverTimestamp(),
         trafficSource: source
-      });
+      };
+
+      if (type === 'course') {
+        clickData.courseId = String(id);
+      } else {
+        clickData.toolId = String(id);
+      }
+
+      await addDoc(collection(db, CLICKS_COLLECTION), clickData);
+
+      // Update user lifetime clicks if logged in
+      if (auth.currentUser) {
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          const currentClicks = userData.lifetimeClicks || 0;
+          await updateDoc(userRef, {
+            lifetimeClicks: currentClicks + 1
+          });
+        }
+      }
 
       // Mark as clicked in this session
       sessionStorage.setItem(sessionKey, 'true');
