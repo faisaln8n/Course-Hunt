@@ -15,6 +15,7 @@ import AdminLogin from './AdminLogin.tsx';
 import Tools from './Tools.tsx';
 import Login from './Login.tsx';
 import Profile from './Profile.tsx';
+import AuthCallback from './AuthCallback.tsx';
 import { AuthProvider } from './components/AuthContext';
 import { CurrencyProvider } from './components/CurrencyContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -100,6 +101,7 @@ export default function App() {
               <Route path="/tools" element={<Tools />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Login />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/profile" element={<Profile />} />
               <Route 
                 path="/admin" 

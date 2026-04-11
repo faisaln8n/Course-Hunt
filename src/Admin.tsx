@@ -857,10 +857,10 @@ export default function AdminDashboard() {
                   <tr key={tx.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                     <td className="py-4 px-4">
                       <div className="text-sm font-bold text-slate-900">
-                        {tx.timestamp?.toDate ? tx.timestamp.toDate().toLocaleDateString() : 'Pending'}
+                        {tx.timestamp ? new Date(tx.timestamp).toLocaleDateString() : 'Pending'}
                       </div>
                       <div className="text-[10px] text-slate-400 font-medium">
-                        {tx.timestamp?.toDate ? tx.timestamp.toDate().toLocaleTimeString() : ''}
+                        {tx.timestamp ? new Date(tx.timestamp).toLocaleTimeString() : ''}
                       </div>
                     </td>
                     <td className="py-4 px-4">
@@ -941,7 +941,7 @@ export default function AdminDashboard() {
                     <td className="py-4 px-4">
                       <div className="text-sm font-bold text-slate-900">{req.userEmail}</div>
                       <div className="text-[10px] text-slate-400 font-medium">
-                        {req.createdAt?.toDate ? req.createdAt.toDate().toLocaleString() : 'Just now'}
+                        {req.createdAt ? new Date(req.createdAt).toLocaleString() : 'Just now'}
                       </div>
                     </td>
                     <td className="py-4 px-4">
@@ -1054,7 +1054,7 @@ export default function AdminDashboard() {
                     <td className="py-4 px-4">
                       <div className="text-sm font-bold text-slate-900">{req.userEmail}</div>
                       <div className="text-[10px] text-slate-400 font-medium">
-                        {req.timestamp?.toDate ? req.timestamp.toDate().toLocaleString() : 'Just now'}
+                        {req.timestamp ? new Date(req.timestamp).toLocaleString() : 'Just now'}
                       </div>
                     </td>
                     <td className="py-4 px-4">
@@ -1174,7 +1174,7 @@ export default function AdminDashboard() {
                     <td className="py-4 px-4">
                       <div className="text-sm font-bold text-slate-900">{req.userEmail}</div>
                       <div className="text-[10px] text-slate-400 font-medium">
-                        {req.timestamp?.toDate ? req.timestamp.toDate().toLocaleString() : 'Just now'}
+                        {req.timestamp ? new Date(req.timestamp).toLocaleString() : 'Just now'}
                       </div>
                     </td>
                     <td className="py-4 px-4">
@@ -1372,7 +1372,7 @@ export default function AdminDashboard() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-xs text-slate-500">
-                        {order.timestamp?.toDate().toLocaleString()}
+                        {order.timestamp ? new Date(order.timestamp).toLocaleString() : 'Just now'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -1480,7 +1480,7 @@ export default function AdminDashboard() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-xs text-slate-500">
-                        {order.timestamp?.toDate().toLocaleDateString()}
+                        {order.timestamp ? new Date(order.timestamp).toLocaleDateString() : 'Just now'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">

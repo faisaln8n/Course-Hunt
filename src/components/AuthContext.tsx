@@ -108,12 +108,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     try {
-      // 1. Get the auth URL from Supabase without redirecting the iframe
+      const isIframe = window.self !== window.top;
+      const redirectTo = `${window.location.origin}/auth/callback`;
+
+      if (!isIframe) {
+        // Standard redirect for custom domain
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo }
+        });
+        if (error) throw error;
+        return;
+      }
+
+      // Popup flow for AI Studio iframe
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          // Redirect to our special server-side callback handler
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo,
           skipBrowserRedirect: true
         }
       });

@@ -1442,7 +1442,7 @@ const Profile: React.FC = () => {
                             <div className="p-6">
                               <h3 className="font-bold text-slate-900 mb-2 line-clamp-2 leading-tight">{order.courseTitle}</h3>
                               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4">
-                                {order.timestamp?.toDate ? order.timestamp.toDate().toLocaleString() : 'Just now'}
+                                {order.timestamp ? new Date(order.timestamp).toLocaleString() : 'Just now'}
                               </p>
                               <button 
                                 onClick={() => {
@@ -1524,7 +1524,7 @@ const Profile: React.FC = () => {
                             <div className="p-6">
                               <h3 className="font-bold text-slate-900 mb-2 line-clamp-2 leading-tight">{tool.title}</h3>
                               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4">
-                                {order.timestamp?.toDate ? order.timestamp.toDate().toLocaleString() : 'Just now'}
+                                {order.timestamp ? new Date(order.timestamp).toLocaleString() : 'Just now'}
                               </p>
                               <div className="flex flex-col gap-3">
                                 <button 
@@ -1676,7 +1676,7 @@ const Profile: React.FC = () => {
                               <div>
                                 <p className="font-bold text-slate-900">Deposit via {req.method}</p>
                                 <p className="text-xs text-slate-400 font-medium">
-                                  {req.timestamp?.toDate ? req.timestamp.toDate().toLocaleString() : 'Just now'}
+                                  {req.timestamp ? new Date(req.timestamp).toLocaleString() : 'Just now'}
                                 </p>
                               </div>
                             </div>
@@ -1755,7 +1755,7 @@ const Profile: React.FC = () => {
                                     <p className="font-bold text-slate-900">{tx.description}</p>
                                   </div>
                                   <p className="text-xs text-slate-400 font-medium">
-                                    {tx.timestamp?.toDate ? tx.timestamp.toDate().toLocaleString() : 'Just now'}
+                                    {tx.timestamp ? new Date(tx.timestamp).toLocaleString() : 'Just now'}
                                   </p>
                                 </div>
                               </div>
@@ -1994,7 +1994,7 @@ const Profile: React.FC = () => {
                                   withdrawalRequests.map((req) => (
                                     <tr key={req.id} className="hover:bg-white transition-colors">
                                       <td className="px-6 py-4 text-sm text-slate-500 font-medium">
-                                        {req.timestamp?.toDate ? req.timestamp.toDate().toLocaleDateString() : 'Pending...'}
+                                        {req.timestamp ? new Date(req.timestamp).toLocaleDateString() : 'Pending...'}
                                       </td>
                                       <td className="px-6 py-4 text-sm font-black text-slate-900">{formatPrice(req.amount)}</td>
                                       <td className="px-6 py-4 text-sm text-slate-500 font-bold">{req.method}</td>
