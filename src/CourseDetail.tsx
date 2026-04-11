@@ -184,7 +184,7 @@ export default function CourseDetail() {
     if (user && !newReview.user_name) {
       setNewReview(prev => ({
         ...prev,
-        user_name: profile?.displayName || user.displayName || ''
+        user_name: profile?.displayName || user.user_metadata?.full_name || ''
       }));
     }
   }, [user, profile]);
@@ -221,7 +221,7 @@ export default function CourseDetail() {
 
     setIsPurchasing(true);
     try {
-      const balance = await walletService.getBalance(user.uid);
+      const balance = await walletService.getBalance(user.id);
       
       const subtotal = cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0);
       const discount = appliedCoupon ? (
@@ -247,7 +247,7 @@ export default function CourseDetail() {
         ) : 0;
         const itemTotal = itemSubtotal - itemDiscount;
 
-        const result = await walletService.purchaseCourse(user.uid, String(item.id), itemTotal, item.title);
+        const result = await walletService.purchaseCourse(user.id, String(item.id), itemTotal, item.title);
         if (!result.success) {
           throw new Error(result.error || `Failed to purchase ${item.title}`);
         }
@@ -285,7 +285,7 @@ export default function CourseDetail() {
 
     setIsPurchasing(true);
     try {
-      const result = await walletService.purchaseCourse(user.uid, String(course.id), total, course.title);
+      const result = await walletService.purchaseCourse(user.id, String(course.id), total, course.title);
       if (result.success) {
         toast.success('Course purchased successfully!');
         window.dispatchEvent(new CustomEvent('courses-updated'));
@@ -455,13 +455,13 @@ export default function CourseDetail() {
             {user ? (
               <div className="flex items-center gap-4">
                 <Link to="/profile" className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200 hover:border-[#FF6B35] transition-all" style={{ textDecoration: 'none' }}>
-                  {user.photoURL ? (
-                    <img src={user.photoURL} alt={user.displayName || 'User'} className="w-6 h-6 rounded-full" />
+                  {user.user_metadata?.avatar_url ? (
+                    <img src={user.user_metadata.avatar_url} alt={user.user_metadata.full_name || 'User'} className="w-6 h-6 rounded-full" />
                   ) : (
                     <User className="w-5 h-5 text-slate-600" />
                   )}
                   <span className="text-sm font-bold text-slate-700 max-w-[100px] truncate">
-                    {user.displayName?.split(' ')[0] || 'User'}
+                    {user.user_metadata?.full_name?.split(' ')[0] || 'User'}
                   </span>
                 </Link>
               </div>

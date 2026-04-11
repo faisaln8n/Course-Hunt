@@ -71,8 +71,7 @@ import { presenceService } from './services/presenceService';
 import { walletService, DepositRequest, WithdrawalRequest, ToolOrder, CourseOrder } from './services/walletService';
 import { vipService, VIPRequest } from './services/vipService';
 
-import { auth, googleProvider } from './firebase';
-import { signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
+import { supabase } from './supabase';
 import { LogIn as LoginIcon, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -102,15 +101,20 @@ export default function AdminDashboard() {
   const [orderAccountInfo, setOrderAccountInfo] = useState('');
   
   // Auth State
-  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const handleFirebaseSignIn = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
-      toast.success('Signed in with Google successfully');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/admin'
+        }
+      });
+      if (error) throw error;
     } catch (error: any) {
-      console.error('Firebase Sign In Error:', error);
+      console.error('Supabase Sign In Error:', error);
       toast.error('Failed to sign in with Google: ' + error.message);
     }
   };
@@ -192,11 +196,19 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setCurrentUser(session?.user || null);
+      setIsAuthLoading(false);
+    };
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user || null);
       setIsAuthLoading(false);
     });
-    return () => unsubscribe();
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -247,7 +259,7 @@ export default function AdminDashboard() {
 
       clicks.forEach(click => {
         if (!click.timestamp) return;
-        const clickDate = click.timestamp.toDate();
+        const clickDate = new Date(click.timestamp);
         const dateStr = clickDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         
         if (data[dateStr] !== undefined) {
@@ -467,7 +479,7 @@ export default function AdminDashboard() {
   };
 
   const handleLogout = async () => {
-    await auth.signOut();
+    await supabase.auth.signOut();
     sessionStorage.removeItem('admin_session');
     window.dispatchEvent(new Event('admin-logout'));
     toast.success('Logged out successfully');
@@ -727,7 +739,7 @@ export default function AdminDashboard() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-slate-500">
-                    {user.lastSeen ? new Date(user.lastSeen.toMillis()).toLocaleTimeString() : 'Just now'}
+                    {user.lastSeen ? new Date(user.lastSeen).toLocaleTimeString() : 'Just now'}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className="inline-flex items-center gap-1.5 text-green-600">

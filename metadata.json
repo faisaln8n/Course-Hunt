@@ -1,5 +1,5 @@
 {
   "name": "Cheap",
   "description": "Find practical digital products and services designed to help creators, freelancers, and brands grow online.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["camera"]
 }

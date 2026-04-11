@@ -4,8 +4,7 @@ import { BookOpen, Lock, AlertCircle, LogIn, Target } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Logo from './components/ui/Logo';
 
-import { auth, googleProvider } from './firebase';
-import { signInWithPopup } from 'firebase/auth';
+import { supabase } from './supabase';
 
 import { Toaster, toast } from 'sonner';
 
@@ -18,8 +17,13 @@ export default function AdminLogin() {
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
-      await signInWithPopup(auth, googleProvider);
-      toast.success('Authenticated with Google');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/admin'
+        }
+      });
+      if (error) throw error;
     } catch (error) {
       console.error('Error signing in with Google:', error);
       toast.error('Failed to sign in with Google');

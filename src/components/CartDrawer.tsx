@@ -203,7 +203,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
         return { id: String(item.id), type: item.type, price, title: item.title };
       });
 
-      const result = await walletService.checkoutCart(user.uid, user.email || '', checkoutItems);
+      const result = await walletService.checkoutCart(user.id, user.email || '', checkoutItems);
       
       if (result.success) {
         toast.success('Purchase successful!');

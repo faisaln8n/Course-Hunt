@@ -1,6 +1,4 @@
-import { Course } from '../data/courses';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { supabase } from '../supabase';
 
 export interface CartItem {
   id: string | number;
@@ -9,32 +7,30 @@ export interface CartItem {
 
 const GUEST_CART_KEY = 'course_hunt_cart_guest';
 let currentUserId: string | null = null;
-let unsubscribe: (() => void) | null = null;
 
 export const cartService = {
   setUserId(userId: string | null) {
     if (currentUserId === userId) return;
     currentUserId = userId;
     
-    if (unsubscribe) {
-      unsubscribe();
-      unsubscribe = null;
-    }
-
     if (userId) {
-      // One-time fetch from Firestore for logged-in users
-      const cartRef = doc(db, 'carts', userId);
-      getDoc(cartRef).then((docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          const items = data.items || [];
-          const userKey = `course_hunt_cart_${userId}`;
-          localStorage.setItem(userKey, JSON.stringify(items));
-          window.dispatchEvent(new Event('cart-updated'));
-        }
-      }).catch((error) => {
-        handleFirestoreError(error, OperationType.GET, `carts/${userId}`);
-      });
+      // One-time fetch from Supabase for logged-in users
+      supabase
+        .from('carts')
+        .select('items')
+        .eq('userId', userId)
+        .single()
+        .then(({ data, error }) => {
+          if (data && !error) {
+            const items = data.items || [];
+            const userKey = `course_hunt_cart_${userId}`;
+            localStorage.setItem(userKey, JSON.stringify(items));
+            window.dispatchEvent(new Event('cart-updated'));
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching cart:', error);
+        });
     }
     
     window.dispatchEvent(new Event('cart-updated'));
@@ -51,7 +47,6 @@ export const cartService = {
       items = stored ? JSON.parse(stored) : [];
     }
     
-    // Migration: if items are just IDs (old format), convert them to courses
     if (items.length > 0 && (typeof items[0] === 'string' || typeof items[0] === 'number')) {
       return (items as unknown as (string | number)[]).map(id => ({ id, type: 'course' }));
     }
@@ -63,13 +58,13 @@ export const cartService = {
     const items = this.getCartItems();
     if (!items.find(item => item.id === id && item.type === type)) {
       items.push({ id, type });
-      this._saveCart(items);
+      await this._saveCart(items);
     }
   },
 
   async removeFromCart(id: string | number, type: 'course' | 'tool') {
     const items = this.getCartItems().filter(item => !(item.id === id && item.type === type));
-    this._saveCart(items);
+    await this._saveCart(items);
   },
 
   async _saveCart(items: CartItem[]) {
@@ -77,16 +72,18 @@ export const cartService = {
       const userKey = `course_hunt_cart_${currentUserId}`;
       localStorage.setItem(userKey, JSON.stringify(items));
       
-      // Sync to Firestore
       try {
-        const cartRef = doc(db, 'carts', currentUserId);
-        await setDoc(cartRef, {
-          userId: currentUserId,
-          items: items,
-          updatedAt: new Date().toISOString()
-        });
+        const { error } = await supabase
+          .from('carts')
+          .upsert({
+            userId: currentUserId,
+            items: items,
+            updatedAt: new Date().toISOString()
+          }, { onConflict: 'userId' });
+        
+        if (error) throw error;
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `carts/${currentUserId}`);
+        console.error('Error saving cart:', error);
       }
     } else {
       localStorage.setItem(GUEST_CART_KEY, JSON.stringify(items));
@@ -103,6 +100,6 @@ export const cartService = {
   },
 
   async clearCart() {
-    this._saveCart([]);
+    await this._saveCart([]);
   }
 };

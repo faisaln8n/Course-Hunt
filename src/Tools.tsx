@@ -125,7 +125,7 @@ export default function Tools() {
 
     setIsPurchasing(true);
     try {
-      const balance = await walletService.getBalance(user.uid);
+      const balance = await walletService.getBalance(user.id);
       const total = cartItems.reduce((acc, item) => acc + item.price, 0);
 
       if (balance < total) {
@@ -135,7 +135,7 @@ export default function Tools() {
       }
 
       for (const item of cartItems) {
-        const result = await walletService.orderTool(user.uid, user.email || '', item.id, item.price, item.title);
+        const result = await walletService.orderTool(user.id, user.email || '', item.id, item.price, item.title);
         if (!result.success) {
           throw new Error(result.error || `Failed to order ${item.title}`);
         }
@@ -202,13 +202,13 @@ export default function Tools() {
 
             {user ? (
               <Link to="/profile" className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200 hover:border-[#FF6B35] transition-all">
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt={user.displayName || 'User'} className="w-6 h-6 rounded-full" />
+                {user.user_metadata?.avatar_url ? (
+                  <img src={user.user_metadata?.avatar_url} alt={user.user_metadata?.full_name || 'User'} className="w-6 h-6 rounded-full" />
                 ) : (
                   <User className="w-5 h-5 text-slate-600" />
                 )}
                 <span className="text-sm font-bold text-slate-700 max-w-[100px] truncate">
-                  {user.displayName?.split(' ')[0] || 'User'}
+                  {user.user_metadata?.full_name?.split(' ')[0] || 'User'}
                 </span>
               </Link>
             ) : (

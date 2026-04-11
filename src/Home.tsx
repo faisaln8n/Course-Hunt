@@ -477,7 +477,7 @@ export default function Home() {
         }
 
         const result = await walletService.purchaseCourse(
-          user.uid,
+          user.id,
           String(item.id),
           itemPrice,
           item.title
@@ -654,13 +654,13 @@ export default function Home() {
               {user ? (
                 <div className="flex items-center gap-4">
                   <Link to="/profile" className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200 hover:border-[#FF6B35] transition-all">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt={user.displayName || 'User'} className="w-6 h-6 rounded-full" />
+                    {user.user_metadata?.avatar_url ? (
+                      <img src={user.user_metadata.avatar_url} alt={user.user_metadata.full_name || 'User'} className="w-6 h-6 rounded-full" />
                     ) : (
                       <User className="w-5 h-5 text-slate-600" />
                     )}
                     <span className="text-sm font-bold text-slate-700 max-w-[100px] truncate">
-                      {user.displayName?.split(' ')[0] || 'User'}
+                      {user.user_metadata?.full_name?.split(' ')[0] || 'User'}
                     </span>
                   </Link>
                 </div>
@@ -752,13 +752,13 @@ export default function Home() {
                 {user ? (
                   <div className="flex flex-col items-center gap-4 pt-4 border-t border-slate-100">
                     <Link to="/profile" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-full border border-slate-200 hover:border-[#FF6B35] transition-all">
-                      {user.photoURL ? (
-                        <img src={user.photoURL} alt={user.displayName || 'User'} className="w-6 h-6 rounded-full" />
+                      {user.user_metadata?.avatar_url ? (
+                        <img src={user.user_metadata.avatar_url} alt={user.user_metadata.full_name || 'User'} className="w-6 h-6 rounded-full" />
                       ) : (
                         <User className="w-5 h-5 text-slate-600" />
                       )}
                       <span className="text-sm font-bold text-slate-700">
-                        {user.displayName || 'User'}
+                        {user.user_metadata?.full_name || 'User'}
                       </span>
                     </Link>
                   </div>

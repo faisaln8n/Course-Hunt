@@ -1,24 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { auth, googleProvider } from './firebase';
-import { signInWithPopup } from 'firebase/auth';
 import { useNavigate, Link } from 'react-router-dom';
-import { toast } from 'sonner';
-import { Target } from 'lucide-react';
 import Logo from './components/ui/Logo';
+import { useUserAuth } from './components/AuthContext';
 
 const Login: React.FC = () => {
-  const navigate = useNavigate();
+  const { signInWithGoogle } = useUserAuth();
 
   const handleGoogleSignIn = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-      toast.success('Successfully signed in!');
-      navigate('/');
-    } catch (error) {
-      console.error('Error signing in with Google:', error);
-      toast.error('Failed to sign in. Please try again.');
-    }
+    await signInWithGoogle();
   };
 
   return (

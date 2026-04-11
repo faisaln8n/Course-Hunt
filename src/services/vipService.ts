@@ -1,21 +1,8 @@
-import { 
-  collection, 
-  getDocs, 
-  getDoc, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  query, 
-  orderBy,
-  serverTimestamp,
-  where,
-  increment
-} from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, auth } from '../firebase';
+import { supabase } from '../supabase';
 import { walletService } from './walletService';
 import { userService } from './userService';
 
-const VIP_REQUESTS_COLLECTION = 'vip_requests';
+const VIP_REQUESTS_TABLE = 'vip_requests';
 
 export interface VIPRequest {
   id: string;
@@ -27,8 +14,8 @@ export interface VIPRequest {
   amount: number;
   couponCode?: string;
   status: 'pending' | 'approved' | 'rejected';
-  createdAt: any;
-  updatedAt: any;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const vipService = {
@@ -58,67 +45,88 @@ export const vipService = {
       const requestData = {
         ...data,
         status: 'pending',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
-      const docRef = await addDoc(collection(db, VIP_REQUESTS_COLLECTION), requestData);
+      const { data: insertedData, error } = await supabase
+        .from(VIP_REQUESTS_TABLE)
+        .insert(requestData)
+        .select()
+        .single();
+      
+      if (error) throw error;
       
       // 4. Update user status to pending
       await userService.updateUserProfile(data.userId, { vipStatus: 'pending' });
 
-      return { success: true, id: docRef.id };
+      return { success: true, id: insertedData.id };
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, VIP_REQUESTS_COLLECTION);
+      console.error('Error submitting VIP request:', error);
       return { success: false, error: 'Failed to submit VIP request' };
     }
   },
 
   async approveVIPRequest(requestId: string, userId: string) {
     try {
-      const requestRef = doc(db, VIP_REQUESTS_COLLECTION, requestId);
-      const requestSnap = await getDoc(requestRef);
+      const { data: requestData, error: fetchError } = await supabase
+        .from(VIP_REQUESTS_TABLE)
+        .select('*')
+        .eq('id', requestId)
+        .single();
       
-      if (!requestSnap.exists()) {
+      if (fetchError || !requestData) {
         return { success: false, error: 'Request not found' };
       }
 
-      const requestData = requestSnap.data() as VIPRequest;
-
       // Update request status
-      await updateDoc(requestRef, {
-        status: 'approved',
-        updatedAt: serverTimestamp()
-      });
+      const { error: updateError } = await supabase
+        .from(VIP_REQUESTS_TABLE)
+        .update({
+          status: 'approved',
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', requestId);
+      
+      if (updateError) throw updateError;
 
       // Calculate expiry date (30 days from now)
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + 30);
 
       // Update user profile
+      const { data: userData } = await supabase
+        .from('users')
+        .select('vipRenewalCount')
+        .eq('uid', userId)
+        .single();
+
       await userService.updateUserProfile(userId, {
         vipStatus: 'active',
         vipExpiryDate: expiryDate.toISOString(),
         vipJoinDate: new Date().toISOString(),
-        vipRenewalCount: increment(1)
+        vipRenewalCount: (userData?.vipRenewalCount || 0) + 1
       });
 
       return { success: true };
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, VIP_REQUESTS_COLLECTION);
+      console.error('Error approving VIP request:', error);
       return { success: false, error: 'Failed to approve VIP request' };
     }
   },
 
   async rejectVIPRequest(requestId: string, userId: string, refundAmount: number) {
     try {
-      const requestRef = doc(db, VIP_REQUESTS_COLLECTION, requestId);
-      
       // Update request status
-      await updateDoc(requestRef, {
-        status: 'rejected',
-        updatedAt: serverTimestamp()
-      });
+      const { error: updateError } = await supabase
+        .from(VIP_REQUESTS_TABLE)
+        .update({
+          status: 'rejected',
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', requestId);
+      
+      if (updateError) throw updateError;
 
       // Refund funds
       await walletService.addFunds(userId, refundAmount, 'VIP Membership Request Rejected (Refund)');
@@ -130,30 +138,39 @@ export const vipService = {
 
       return { success: true };
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, VIP_REQUESTS_COLLECTION);
+      console.error('Error rejecting VIP request:', error);
       return { success: false, error: 'Failed to reject VIP request' };
     }
   },
 
   async getAllVIPRequests(): Promise<VIPRequest[]> {
-    const q = query(collection(db, VIP_REQUESTS_COLLECTION), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    })) as VIPRequest[];
+    try {
+      const { data, error } = await supabase
+        .from(VIP_REQUESTS_TABLE)
+        .select('*')
+        .order('createdAt', { ascending: false });
+      
+      if (error) throw error;
+      return data as VIPRequest[];
+    } catch (error) {
+      console.error('Error getting all VIP requests:', error);
+      return [];
+    }
   },
 
   async getUserVIPRequests(userId: string): Promise<VIPRequest[]> {
-    const q = query(
-      collection(db, VIP_REQUESTS_COLLECTION),
-      where('userId', '==', userId),
-      orderBy('createdAt', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    })) as VIPRequest[];
+    try {
+      const { data, error } = await supabase
+        .from(VIP_REQUESTS_TABLE)
+        .select('*')
+        .eq('userId', userId)
+        .order('createdAt', { ascending: false });
+      
+      if (error) throw error;
+      return data as VIPRequest[];
+    } catch (error) {
+      console.error('Error getting user VIP requests:', error);
+      return [];
+    }
   }
 };

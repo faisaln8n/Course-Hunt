@@ -1,18 +1,4 @@
-import { 
-  doc, 
-  getDoc, 
-  updateDoc, 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  getDocs, 
-  orderBy, 
-  serverTimestamp,
-  increment,
-  arrayUnion
-} from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 
 export interface Transaction {
   id?: string;
@@ -20,7 +6,7 @@ export interface Transaction {
   amount: number;
   type: 'deposit' | 'withdrawal' | 'course_purchase' | 'tool_purchase' | 'affiliate_commission' | 'vip_join' | 'refund' | 'purchase';
   description: string;
-  timestamp: any;
+  timestamp: string;
   productName?: string;
 }
 
@@ -35,7 +21,7 @@ export interface DepositRequest {
   screenshotUrl: string;
   couponCode?: string;
   status: 'Pending' | 'Paid' | 'Rejected' | 'Declined';
-  timestamp: any;
+  timestamp: string;
 }
 
 export interface WithdrawalRequest {
@@ -44,9 +30,9 @@ export interface WithdrawalRequest {
   userEmail: string;
   amount: number;
   method: 'bKash' | 'Binance';
-  details: string; // bKash number or Binance UID
+  details: string;
   status: 'Pending' | 'Approved' | 'Rejected' | 'Processed';
-  timestamp: any;
+  timestamp: string;
 }
 
 export interface ToolOrder {
@@ -58,7 +44,7 @@ export interface ToolOrder {
   amount: number;
   status: 'Ordered' | 'Purchased' | 'Rejected';
   accountInfo?: string;
-  timestamp: any;
+  timestamp: string;
 }
 
 export interface CourseOrder {
@@ -69,35 +55,35 @@ export interface CourseOrder {
   courseTitle: string;
   amount: number;
   status: 'Pending' | 'Completed' | 'Rejected';
-  timestamp: any;
+  timestamp: string;
 }
 
 export const walletService = {
   async getBalance(userId: string): Promise<number> {
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    if (userDoc.exists()) {
-      return userDoc.data().walletBalance || 0;
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('walletBalance')
+        .eq('uid', userId)
+        .single();
+      if (error) throw error;
+      return data?.walletBalance || 0;
+    } catch (error) {
+      console.error('Error getting balance:', error);
+      return 0;
     }
-    return 0;
   },
 
   async submitDepositRequest(request: Omit<DepositRequest, 'id' | 'status' | 'timestamp'>): Promise<{ success: boolean; error?: string }> {
     try {
-      const data: any = {
-        userId: request.userId,
-        userEmail: request.userEmail,
-        amount: request.amount,
-        method: request.method,
-        screenshotUrl: request.screenshotUrl,
-        status: 'Pending',
-        timestamp: serverTimestamp()
-      };
-
-      if (request.transactionId !== undefined) data.transactionId = request.transactionId;
-      if (request.binanceUid !== undefined) data.binanceUid = request.binanceUid;
-      if (request.couponCode !== undefined) data.couponCode = request.couponCode;
-
-      await addDoc(collection(db, 'deposit_requests'), data);
+      const { error } = await supabase
+        .from('deposit_requests')
+        .insert({
+          ...request,
+          status: 'Pending',
+          timestamp: new Date().toISOString()
+        });
+      if (error) throw error;
       return { success: true };
     } catch (error: any) {
       console.error('Error submitting deposit request:', error);
@@ -106,157 +92,174 @@ export const walletService = {
   },
 
   async getDepositRequests(): Promise<DepositRequest[]> {
-    const q = query(
-      collection(db, 'deposit_requests'),
-      orderBy('timestamp', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as DepositRequest[];
+    try {
+      const { data, error } = await supabase
+        .from('deposit_requests')
+        .select('*')
+        .order('timestamp', { ascending: false });
+      if (error) throw error;
+      return data as DepositRequest[];
+    } catch (error) {
+      console.error('Error getting deposit requests:', error);
+      return [];
+    }
   },
 
   async getAllWithdrawals(): Promise<WithdrawalRequest[]> {
-    const q = query(
-      collection(db, 'withdrawals'),
-      orderBy('timestamp', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as WithdrawalRequest[];
+    try {
+      const { data, error } = await supabase
+        .from('withdrawals')
+        .select('*')
+        .order('timestamp', { ascending: false });
+      if (error) throw error;
+      return data as WithdrawalRequest[];
+    } catch (error) {
+      console.error('Error getting withdrawals:', error);
+      return [];
+    }
   },
 
   async getAllToolOrders(): Promise<ToolOrder[]> {
-    const q = query(
-      collection(db, 'tool_orders'),
-      orderBy('timestamp', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as ToolOrder[];
+    try {
+      const { data, error } = await supabase
+        .from('tool_orders')
+        .select('*')
+        .order('timestamp', { ascending: false });
+      if (error) throw error;
+      return data as ToolOrder[];
+    } catch (error) {
+      console.error('Error getting tool orders:', error);
+      return [];
+    }
   },
 
   async getAllCourseOrders(): Promise<CourseOrder[]> {
-    const q = query(
-      collection(db, 'course_orders'),
-      orderBy('timestamp', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as CourseOrder[];
+    try {
+      const { data, error } = await supabase
+        .from('course_orders')
+        .select('*')
+        .order('timestamp', { ascending: false });
+      if (error) throw error;
+      return data as CourseOrder[];
+    } catch (error) {
+      console.error('Error getting course orders:', error);
+      return [];
+    }
   },
 
   async getAllTransactions(): Promise<(Transaction & { userEmail?: string })[]> {
-    const q = query(
-      collection(db, 'transactions'),
-      orderBy('timestamp', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    const transactions = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as (Transaction & { userEmail?: string })[];
-    
-    // Fetch user emails for each transaction (limited to first 100 to avoid excessive reads)
-    const topTransactions = transactions.slice(0, 100);
-    const userIds = [...new Set(topTransactions.map(t => t.userId))];
-    const userEmails: Record<string, string> = {};
-    
-    for (const userId of userIds) {
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      if (userDoc.exists()) {
-        userEmails[userId] = userDoc.data().email;
-      }
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          users:userId (email)
+        `)
+        .order('timestamp', { ascending: false })
+        .limit(100);
+      
+      if (error) throw error;
+      
+      return data.map((t: any) => ({
+        ...t,
+        userEmail: t.users?.email || 'Unknown User'
+      }));
+    } catch (error) {
+      console.error('Error getting all transactions:', error);
+      return [];
     }
-    
-    return topTransactions.map(t => ({
-      ...t,
-      userEmail: userEmails[t.userId] || 'Unknown User'
-    }));
   },
 
   async getUserDepositRequests(userId: string): Promise<DepositRequest[]> {
-    const q = query(
-      collection(db, 'deposit_requests'),
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as DepositRequest[];
+    try {
+      const { data, error } = await supabase
+        .from('deposit_requests')
+        .select('*')
+        .eq('userId', userId)
+        .order('timestamp', { ascending: false });
+      if (error) throw error;
+      return data as DepositRequest[];
+    } catch (error) {
+      console.error('Error getting user deposit requests:', error);
+      return [];
+    }
   },
 
   async getUserWithdrawals(userId: string): Promise<WithdrawalRequest[]> {
-    const q = query(
-      collection(db, 'withdrawals'),
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as WithdrawalRequest[];
+    try {
+      const { data, error } = await supabase
+        .from('withdrawals')
+        .select('*')
+        .eq('userId', userId)
+        .order('timestamp', { ascending: false });
+      if (error) throw error;
+      return data as WithdrawalRequest[];
+    } catch (error) {
+      console.error('Error getting user withdrawals:', error);
+      return [];
+    }
   },
 
   async getUserToolOrders(userId: string): Promise<ToolOrder[]> {
-    const q = query(
-      collection(db, 'tool_orders'),
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as ToolOrder[];
+    try {
+      const { data, error } = await supabase
+        .from('tool_orders')
+        .select('*')
+        .eq('userId', userId)
+        .order('timestamp', { ascending: false });
+      if (error) throw error;
+      return data as ToolOrder[];
+    } catch (error) {
+      console.error('Error getting user tool orders:', error);
+      return [];
+    }
   },
 
   async getUserCourseOrders(userId: string): Promise<CourseOrder[]> {
-    const q = query(
-      collection(db, 'course_orders'),
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as CourseOrder[];
+    try {
+      const { data, error } = await supabase
+        .from('course_orders')
+        .select('*')
+        .eq('userId', userId)
+        .order('timestamp', { ascending: false });
+      if (error) throw error;
+      return data as CourseOrder[];
+    } catch (error) {
+      console.error('Error getting user course orders:', error);
+      return [];
+    }
   },
 
   async updateDepositStatus(requestId: string, status: DepositRequest['status']): Promise<{ success: boolean; error?: string }> {
     try {
-      const requestRef = doc(db, 'deposit_requests', requestId);
-      const requestDoc = await getDoc(requestRef);
+      const { data: requestData, error: fetchError } = await supabase
+        .from('deposit_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
       
-      if (!requestDoc.exists()) throw new Error('Request not found');
-      
-      const requestData = requestDoc.data() as DepositRequest;
-      
-      if (requestData.status !== 'Pending') {
-        throw new Error('Request already processed');
-      }
+      if (fetchError || !requestData) throw new Error('Request not found');
+      if (requestData.status !== 'Pending') throw new Error('Request already processed');
 
-      await updateDoc(requestRef, { status });
+      const { error: updateError } = await supabase
+        .from('deposit_requests')
+        .update({ status })
+        .eq('id', requestId);
+      
+      if (updateError) throw updateError;
 
       if (status === 'Paid') {
         let finalAmount = requestData.amount;
         let bonusAmount = 0;
         
         if (requestData.couponCode) {
-          const settingsDoc = await getDoc(doc(db, 'settings', 'app_settings'));
-          if (settingsDoc.exists()) {
-            const settings = settingsDoc.data();
+          const { data: settings } = await supabase
+            .from('settings')
+            .select('depositCoupons')
+            .eq('id', 'app_settings')
+            .single();
+          
+          if (settings) {
             const coupon = (settings.depositCoupons || []).find((c: any) => 
               c.code === requestData.couponCode && 
               c.isActive && 
@@ -269,18 +272,29 @@ export const walletService = {
           }
         }
 
-        const userRef = doc(db, 'users', requestData.userId);
-        await updateDoc(userRef, {
-          walletBalance: increment(finalAmount),
-          lifetimeDeposit: increment(requestData.amount)
-        });
+        // Update user balance and lifetime deposit
+        const { data: userData } = await supabase
+          .from('users')
+          .select('walletBalance, lifetimeDeposit')
+          .eq('uid', requestData.userId)
+          .single();
+        
+        if (userData) {
+          await supabase
+            .from('users')
+            .update({
+              walletBalance: (userData.walletBalance || 0) + finalAmount,
+              lifetimeDeposit: (userData.lifetimeDeposit || 0) + requestData.amount
+            })
+            .eq('uid', requestData.userId);
+        }
 
-        await addDoc(collection(db, 'transactions'), {
+        await supabase.from('transactions').insert({
           userId: requestData.userId,
           amount: finalAmount,
           type: 'deposit',
           description: `Deposit via ${requestData.method} approved${bonusAmount > 0 ? ` (Includes $${bonusAmount.toFixed(2)} bonus)` : ''}`,
-          timestamp: serverTimestamp()
+          timestamp: new Date().toISOString()
         });
       }
 
@@ -292,48 +306,46 @@ export const walletService = {
   },
 
   async getTransactions(userId: string): Promise<Transaction[]> {
-    const q = query(
-      collection(db, 'transactions'),
-      where('userId', '==', userId)
-    );
-    const querySnapshot = await getDocs(q);
-    const transactions = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Transaction[];
-    
-    // Sort in memory to avoid composite index requirement
-    transactions.sort((a, b) => {
-      const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
-      const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
-      return timeB - timeA;
-    });
-    
-    return transactions;
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('userId', userId)
+        .order('timestamp', { ascending: false });
+      if (error) throw error;
+      return data as Transaction[];
+    } catch (error) {
+      console.error('Error getting transactions:', error);
+      return [];
+    }
   },
 
   async deductFunds(userId: string, amount: number, description: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const userRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userRef);
+      const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select('walletBalance')
+        .eq('uid', userId)
+        .single();
       
-      if (!userDoc.exists()) throw new Error('User not found');
+      if (fetchError || !userData) throw new Error('User not found');
       
-      const currentBalance = userDoc.data().walletBalance || 0;
-      if (currentBalance < amount) {
-        throw new Error('Insufficient balance');
-      }
+      const currentBalance = userData.walletBalance || 0;
+      if (currentBalance < amount) throw new Error('Insufficient balance');
 
-      await updateDoc(userRef, {
-        walletBalance: increment(-amount)
-      });
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ walletBalance: currentBalance - amount })
+        .eq('uid', userId);
+      
+      if (updateError) throw updateError;
 
-      await addDoc(collection(db, 'transactions'), {
+      await supabase.from('transactions').insert({
         userId,
         amount: -amount,
         type: 'purchase',
         description,
-        timestamp: serverTimestamp()
+        timestamp: new Date().toISOString()
       });
 
       return { success: true };
@@ -345,17 +357,23 @@ export const walletService = {
 
   async addFunds(userId: string, amount: number, description: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        walletBalance: increment(amount)
-      });
+      const { data: userData } = await supabase
+        .from('users')
+        .select('walletBalance')
+        .eq('uid', userId)
+        .single();
+      
+      await supabase
+        .from('users')
+        .update({ walletBalance: (userData?.walletBalance || 0) + amount })
+        .eq('uid', userId);
 
-      await addDoc(collection(db, 'transactions'), {
+      await supabase.from('transactions').insert({
         userId,
         amount,
         type: 'deposit',
         description,
-        timestamp: serverTimestamp()
+        timestamp: new Date().toISOString()
       });
 
       return { success: true };
@@ -367,62 +385,63 @@ export const walletService = {
 
   async purchaseCourse(userId: string, courseId: string, amount: number, courseTitle: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const userRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userRef);
+      const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('uid', userId)
+        .single();
       
-      if (!userDoc.exists()) throw new Error('User not found');
+      if (fetchError || !userData) throw new Error('User not found');
       
-      const userData = userDoc.data();
       const currentBalance = userData.walletBalance || 0;
       const purchasedCourses = userData.purchasedCourses || [];
       const referredBy = userData.referredBy;
       
-      if (currentBalance < amount) {
-        throw new Error('Insufficient balance');
-      }
+      if (currentBalance < amount) throw new Error('Insufficient balance');
 
-      // Update user balance
-      await updateDoc(userRef, {
-        walletBalance: increment(-amount)
-      });
+      await supabase
+        .from('users')
+        .update({ walletBalance: currentBalance - amount })
+        .eq('uid', userId);
 
-      // Create course order
-      await addDoc(collection(db, 'course_orders'), {
+      await supabase.from('course_orders').insert({
         userId,
         userEmail: userData.email,
         courseId,
         courseTitle,
         amount,
         status: 'Pending',
-        timestamp: serverTimestamp()
+        timestamp: new Date().toISOString()
       });
 
-      // Record transaction
-      await addDoc(collection(db, 'transactions'), {
+      await supabase.from('transactions').insert({
         userId,
         amount: -amount,
         type: 'course_purchase',
         productName: courseTitle,
         description: `Purchased course: ${courseTitle}`,
-        timestamp: serverTimestamp()
+        timestamp: new Date().toISOString()
       });
 
-      // Commission Logic: 30% on first purchase
       if (referredBy && purchasedCourses.length === 0) {
         const commission = amount * 0.3;
-        const referrerRef = doc(db, 'users', referredBy);
+        const { data: referrerData } = await supabase
+          .from('users')
+          .select('affiliateBalance')
+          .eq('uid', referredBy)
+          .single();
         
-        await updateDoc(referrerRef, {
-          affiliateBalance: increment(commission)
-        });
+        await supabase
+          .from('users')
+          .update({ affiliateBalance: (referrerData?.affiliateBalance || 0) + commission })
+          .eq('uid', referredBy);
 
-        // Record commission transaction for referrer
-        await addDoc(collection(db, 'transactions'), {
+        await supabase.from('transactions').insert({
           userId: referredBy,
           amount: commission,
           type: 'affiliate_commission',
           description: `Referral commission from ${userData.email}'s first purchase`,
-          timestamp: serverTimestamp()
+          timestamp: new Date().toISOString()
         });
       }
 
@@ -435,63 +454,41 @@ export const walletService = {
 
   async checkoutCart(userId: string, userEmail: string, items: { id: string; type: 'course' | 'tool'; price: number; title: string }[]): Promise<{ success: boolean; error?: string }> {
     try {
-      const userRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userRef);
+      const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select('walletBalance')
+        .eq('uid', userId)
+        .single();
       
-      if (!userDoc.exists()) throw new Error('User not found');
+      if (fetchError || !userData) throw new Error('User not found');
       
-      const userData = userDoc.data();
       const currentBalance = userData.walletBalance || 0;
-      
       const totalAmount = items.reduce((acc, item) => acc + item.price, 0);
       
-      if (currentBalance < totalAmount) {
-        throw new Error('Insufficient balance');
-      }
+      if (currentBalance < totalAmount) throw new Error('Insufficient balance');
 
-      const coursesToPurchase = items.filter(i => i.type === 'course');
-      const toolOrdersToCreate = items.filter(i => i.type === 'tool');
+      await supabase
+        .from('users')
+        .update({ walletBalance: currentBalance - totalAmount })
+        .eq('uid', userId);
 
-      // Update user balance
-      await updateDoc(userRef, {
-        walletBalance: increment(-totalAmount)
-      });
-
-      // Create course orders
-      for (const course of coursesToPurchase) {
-        await addDoc(collection(db, 'course_orders'), {
-          userId,
-          userEmail,
-          courseId: course.id,
-          courseTitle: course.title,
-          amount: course.price,
-          status: 'Pending',
-          timestamp: serverTimestamp()
-        });
-      }
-
-      // Create tool orders
-      for (const tool of toolOrdersToCreate) {
-        await addDoc(collection(db, 'tool_orders'), {
-          userId,
-          userEmail,
-          toolId: tool.id,
-          toolTitle: tool.title,
-          amount: tool.price,
-          status: 'Ordered',
-          timestamp: serverTimestamp()
-        });
-      }
-
-      // Record transactions for each item
       for (const item of items) {
-        await addDoc(collection(db, 'transactions'), {
-          userId,
-          amount: -item.price,
-          type: item.type === 'course' ? 'course_purchase' : 'tool_purchase',
-          productName: item.title,
-          description: `Purchased ${item.type}: ${item.title}`,
-          timestamp: serverTimestamp()
+        if (item.type === 'course') {
+          await supabase.from('course_orders').insert({
+            userId, userEmail, courseId: item.id, courseTitle: item.title, amount: item.price,
+            status: 'Pending', timestamp: new Date().toISOString()
+          });
+        } else {
+          await supabase.from('tool_orders').insert({
+            userId, userEmail, toolId: item.id, toolTitle: item.title, amount: item.price,
+            status: 'Ordered', timestamp: new Date().toISOString()
+          });
+        }
+
+        await supabase.from('transactions').insert({
+          userId, amount: -item.price, type: item.type === 'course' ? 'course_purchase' : 'tool_purchase',
+          productName: item.title, description: `Purchased ${item.type}: ${item.title}`,
+          timestamp: new Date().toISOString()
         });
       }
 
@@ -504,66 +501,63 @@ export const walletService = {
 
   async addFundsByEmail(email: string, amount: number): Promise<{ success: boolean; error?: string }> {
     try {
-      const q = query(collection(db, 'users'), where('email', '==', email));
-      const querySnapshot = await getDocs(q);
+      const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select('uid, walletBalance')
+        .eq('email', email)
+        .single();
       
-      if (querySnapshot.empty) {
-        throw new Error('User with this email not found');
-      }
+      if (fetchError || !userData) throw new Error('User with this email not found');
 
-      const userDoc = querySnapshot.docs[0];
-      const userRef = doc(db, 'users', userDoc.id);
+      await supabase
+        .from('users')
+        .update({ walletBalance: (userData.walletBalance || 0) + amount })
+        .eq('uid', userData.uid);
 
-      // Update user balance
-      await updateDoc(userRef, {
-        walletBalance: increment(amount)
-      });
-
-      // Record transaction
-      await addDoc(collection(db, 'transactions'), {
-        userId: userDoc.id,
+      await supabase.from('transactions').insert({
+        userId: userData.uid,
         amount,
         type: 'deposit',
         description: 'Funds added by administrator',
-        timestamp: serverTimestamp()
+        timestamp: new Date().toISOString()
       });
       return { success: true };
     } catch (error: any) {
-      console.error('Error adding funds:', error);
+      console.error('Error adding funds by email:', error);
       return { success: false, error: error.message };
     }
   },
 
   async submitWithdrawalRequest(request: Omit<WithdrawalRequest, 'id' | 'status' | 'timestamp'>): Promise<{ success: boolean; error?: string }> {
     try {
-      const userRef = doc(db, 'users', request.userId);
-      const userDoc = await getDoc(userRef);
+      const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select('affiliateBalance')
+        .eq('uid', request.userId)
+        .single();
       
-      if (!userDoc.exists()) throw new Error('User not found');
-      const affiliateBalance = userDoc.data().affiliateBalance || 0;
+      if (fetchError || !userData) throw new Error('User not found');
+      const affiliateBalance = userData.affiliateBalance || 0;
       
-      if (affiliateBalance < request.amount) {
-        throw new Error('Insufficient affiliate balance');
-      }
+      if (affiliateBalance < request.amount) throw new Error('Insufficient affiliate balance');
 
-      // Deduct from affiliate balance immediately (or wait for approval? usually deduct immediately to prevent double spend)
-      await updateDoc(userRef, {
-        affiliateBalance: increment(-request.amount)
-      });
+      await supabase
+        .from('users')
+        .update({ affiliateBalance: affiliateBalance - request.amount })
+        .eq('uid', request.userId);
 
-      await addDoc(collection(db, 'withdrawals'), {
+      await supabase.from('withdrawals').insert({
         ...request,
         status: 'Pending',
-        timestamp: serverTimestamp()
+        timestamp: new Date().toISOString()
       });
 
-      // Record withdrawal transaction
-      await addDoc(collection(db, 'transactions'), {
+      await supabase.from('transactions').insert({
         userId: request.userId,
         amount: -request.amount,
         type: 'withdrawal',
         description: `Withdrawal request submitted via ${request.method}`,
-        timestamp: serverTimestamp()
+        timestamp: new Date().toISOString()
       });
 
       return { success: true };
@@ -575,31 +569,38 @@ export const walletService = {
 
   async updateWithdrawalStatus(requestId: string, status: WithdrawalRequest['status']): Promise<{ success: boolean; error?: string }> {
     try {
-      const requestRef = doc(db, 'withdrawals', requestId);
-      const requestDoc = await getDoc(requestRef);
+      const { data: requestData, error: fetchError } = await supabase
+        .from('withdrawals')
+        .select('*')
+        .eq('id', requestId)
+        .single();
       
-      if (!requestDoc.exists()) throw new Error('Request not found');
-      const requestData = requestDoc.data() as WithdrawalRequest;
+      if (fetchError || !requestData) throw new Error('Request not found');
+      if (requestData.status === 'Processed' || requestData.status === 'Rejected') throw new Error('Request already finalized');
 
-      if (requestData.status === 'Processed' || requestData.status === 'Rejected') {
-        throw new Error('Request already finalized');
-      }
+      await supabase
+        .from('withdrawals')
+        .update({ status })
+        .eq('id', requestId);
 
-      await updateDoc(requestRef, { status });
-
-      // If rejected, refund the affiliate balance
       if (status === 'Rejected') {
-        const userRef = doc(db, 'users', requestData.userId);
-        await updateDoc(userRef, {
-          affiliateBalance: increment(requestData.amount)
-        });
+        const { data: userData } = await supabase
+          .from('users')
+          .select('affiliateBalance')
+          .eq('uid', requestData.userId)
+          .single();
+        
+        await supabase
+          .from('users')
+          .update({ affiliateBalance: (userData?.affiliateBalance || 0) + requestData.amount })
+          .eq('uid', requestData.userId);
 
-        await addDoc(collection(db, 'transactions'), {
+        await supabase.from('transactions').insert({
           userId: requestData.userId,
           amount: requestData.amount,
           type: 'refund',
           description: `Withdrawal request rejected - funds refunded`,
-          timestamp: serverTimestamp()
+          timestamp: new Date().toISOString()
         });
       }
 
@@ -612,77 +613,74 @@ export const walletService = {
 
   async orderTool(userId: string, userEmail: string, toolId: string, amount: number, toolTitle: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const userRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userRef);
+      const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select('walletBalance')
+        .eq('uid', userId)
+        .single();
       
-      if (!userDoc.exists()) throw new Error('User not found');
+      if (fetchError || !userData) throw new Error('User not found');
       
-      const userData = userDoc.data();
       const currentBalance = userData.walletBalance || 0;
-      
-      if (currentBalance < amount) {
-        throw new Error('Insufficient balance');
-      }
- 
-      // Update user balance
-      await updateDoc(userRef, {
-        walletBalance: increment(-amount)
+      if (currentBalance < amount) throw new Error('Insufficient balance');
+
+      await supabase
+        .from('users')
+        .update({ walletBalance: currentBalance - amount })
+        .eq('uid', userId);
+
+      await supabase.from('tool_orders').insert({
+        userId, userEmail, toolId, toolTitle, amount,
+        status: 'Ordered', timestamp: new Date().toISOString()
       });
- 
-      // Create tool order
-      await addDoc(collection(db, 'tool_orders'), {
-        userId,
-        userEmail,
-        toolId,
-        toolTitle,
-        amount,
-        status: 'Ordered',
-        timestamp: serverTimestamp()
+
+      await supabase.from('transactions').insert({
+        userId, amount: -amount, type: 'tool_purchase', productName: toolTitle,
+        description: `Ordered tool: ${toolTitle}`, timestamp: new Date().toISOString()
       });
- 
-      // Record transaction
-      await addDoc(collection(db, 'transactions'), {
-        userId,
-        amount: -amount,
-        type: 'tool_purchase',
-        productName: toolTitle,
-        description: `Ordered tool: ${toolTitle}`,
-        timestamp: serverTimestamp()
-      });
- 
+
       return { success: true };
     } catch (error: any) {
       console.error('Error ordering tool:', error);
       return { success: false, error: error.message };
     }
   },
- 
+
   async updateToolOrderStatus(orderId: string, status: ToolOrder['status'], accountInfo?: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const orderRef = doc(db, 'tool_orders', orderId);
+      const { data: orderData, error: fetchError } = await supabase
+        .from('tool_orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+      
+      if (fetchError || !orderData) throw new Error('Order not found');
+
       const updateData: any = { status };
       if (accountInfo !== undefined) updateData.accountInfo = accountInfo;
       
-      await updateDoc(orderRef, updateData);
+      await supabase
+        .from('tool_orders')
+        .update(updateData)
+        .eq('id', orderId);
 
-      // If rejected, refund the wallet balance
       if (status === 'Rejected') {
-        const orderDoc = await getDoc(orderRef);
-        if (orderDoc.exists()) {
-          const orderData = orderDoc.data() as ToolOrder;
-          const userRef = doc(db, 'users', orderData.userId);
-          await updateDoc(userRef, {
-            walletBalance: increment(orderData.amount)
-          });
+        const { data: userData } = await supabase
+          .from('users')
+          .select('walletBalance')
+          .eq('uid', orderData.userId)
+          .single();
+        
+        await supabase
+          .from('users')
+          .update({ walletBalance: (userData?.walletBalance || 0) + orderData.amount })
+          .eq('uid', orderData.userId);
 
-          await addDoc(collection(db, 'transactions'), {
-            userId: orderData.userId,
-            amount: orderData.amount,
-            type: 'refund',
-            description: `Tool order rejected - funds refunded: ${orderData.toolTitle}`,
-            timestamp: serverTimestamp()
-          });
-        }
+        await supabase.from('transactions').insert({
+          userId: orderData.userId, amount: orderData.amount, type: 'refund',
+          description: `Tool order rejected - funds refunded: ${orderData.toolTitle}`,
+          timestamp: new Date().toISOString()
+        });
       }
 
       return { success: true };
@@ -694,33 +692,49 @@ export const walletService = {
 
   async updateCourseOrderStatus(orderId: string, status: CourseOrder['status']): Promise<{ success: boolean; error?: string }> {
     try {
-      const orderRef = doc(db, 'course_orders', orderId);
-      const orderDoc = await getDoc(orderRef);
+      const { data: orderData, error: fetchError } = await supabase
+        .from('course_orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
       
-      if (!orderDoc.exists()) throw new Error('Order not found');
-      const orderData = orderDoc.data() as CourseOrder;
+      if (fetchError || !orderData) throw new Error('Order not found');
 
-      await updateDoc(orderRef, { status });
+      await supabase
+        .from('course_orders')
+        .update({ status })
+        .eq('id', orderId);
 
       if (status === 'Completed') {
-        // Grant access to the course
-        const userRef = doc(db, 'users', orderData.userId);
-        await updateDoc(userRef, {
-          purchasedCourses: arrayUnion(orderData.courseId)
-        });
+        const { data: userData } = await supabase
+          .from('users')
+          .select('purchasedCourses')
+          .eq('uid', orderData.userId)
+          .single();
+        
+        const purchasedCourses = userData?.purchasedCourses || [];
+        if (!purchasedCourses.includes(orderData.courseId)) {
+          await supabase
+            .from('users')
+            .update({ purchasedCourses: [...purchasedCourses, orderData.courseId] })
+            .eq('uid', orderData.userId);
+        }
       } else if (status === 'Rejected') {
-        // Refund the wallet balance
-        const userRef = doc(db, 'users', orderData.userId);
-        await updateDoc(userRef, {
-          walletBalance: increment(orderData.amount)
-        });
+        const { data: userData } = await supabase
+          .from('users')
+          .select('walletBalance')
+          .eq('uid', orderData.userId)
+          .single();
+        
+        await supabase
+          .from('users')
+          .update({ walletBalance: (userData?.walletBalance || 0) + orderData.amount })
+          .eq('uid', orderData.userId);
 
-        await addDoc(collection(db, 'transactions'), {
-          userId: orderData.userId,
-          amount: orderData.amount,
-          type: 'refund',
+        await supabase.from('transactions').insert({
+          userId: orderData.userId, amount: orderData.amount, type: 'refund',
           description: `Course order rejected - funds refunded: ${orderData.courseTitle}`,
-          timestamp: serverTimestamp()
+          timestamp: new Date().toISOString()
         });
       }
 

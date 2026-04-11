@@ -18,6 +18,8 @@ import { settingsService } from './services/settingsService';
 import { useCurrency } from './components/CurrencyContext';
 import { toast } from 'sonner';
 
+import { storageService } from './services/storageService';
+
 function cn(...classes: (string | undefined | null | boolean)[]): string {
   return classes.filter(Boolean).join(" ");
 }
@@ -162,22 +164,29 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
     toast.success('Copied to clipboard!');
   };
 
-  const handleScreenshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleScreenshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 800 * 1024) {
-        toast.error('Screenshot too large. Please use an image under 800KB.');
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Screenshot too large. Please use an image under 5MB.');
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => setScreenshot(reader.result as string);
-      reader.readAsDataURL(file);
+      
+      setIsSubmitting(true);
+      const result = await storageService.uploadScreenshot(user.id, file);
+      if (result.success) {
+        setScreenshot(result.url || null);
+        toast.success('Screenshot uploaded successfully!');
+      } else {
+        toast.error('Failed to upload screenshot: ' + result.error);
+      }
+      setIsSubmitting(false);
     }
   };
 
   const handleSubmit = async () => {
     console.log('Deposit handleSubmit triggered');
-    console.log('Current state:', { userId: user.uid, amount, method, transactionId, binanceUid, screenshot: screenshot ? 'present' : 'missing' });
+    console.log('Current state:', { userId: user.id, amount, method, transactionId, binanceUid, screenshot: screenshot ? 'present' : 'missing' });
     
     const numAmount = parseFloat(amount);
     if (!amount || isNaN(numAmount) || numAmount <= 0) {
@@ -202,7 +211,7 @@ const DepositModal: React.FC<{ isOpen: boolean; onClose: () => void; user: any }
     try {
       console.log('Submitting deposit request to walletService...');
       const result = await walletService.submitDepositRequest({
-        userId: user.uid,
+        userId: user.id,
         userEmail: user.email,
         amount: numAmount,
         method: method!,
@@ -548,7 +557,7 @@ const VIPModal = ({ isOpen, onClose, user, profile }: { isOpen: boolean, onClose
     try {
       console.log('Calling vipService.submitVIPRequest...');
       const result = await vipService.submitVIPRequest({
-        userId: user.uid,
+        userId: user.id,
         userEmail: user.email,
         fullName: formData.fullName,
         telegramUsername: formData.telegramUsername,
@@ -834,7 +843,7 @@ const Profile: React.FC = () => {
   useEffect(() => {
     if (user) {
       const fetchVIPRequests = async () => {
-        const requests = await vipService.getUserVIPRequests(user.uid);
+        const requests = await vipService.getUserVIPRequests(user.id);
         setVIPRequests(requests);
       };
       fetchVIPRequests();
@@ -889,12 +898,12 @@ const Profile: React.FC = () => {
           tOrders,
           cOrders
         ] = await Promise.all([
-          walletService.getTransactions(user.uid),
-          walletService.getUserDepositRequests(user.uid),
-          userService.getReferredUsers(user.uid),
-          walletService.getUserWithdrawals(user.uid),
-          walletService.getUserToolOrders(user.uid),
-          walletService.getUserCourseOrders(user.uid)
+          walletService.getTransactions(user.id),
+          walletService.getUserDepositRequests(user.id),
+          userService.getReferredUsers(user.id),
+          walletService.getUserWithdrawals(user.id),
+          walletService.getUserToolOrders(user.id),
+          walletService.getUserCourseOrders(user.id)
         ]);
 
         setTransactions(txs);
@@ -942,31 +951,35 @@ const Profile: React.FC = () => {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'photo' | 'cover') => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !user) return;
 
-    // Check file size (limit to 800KB for base64 storage in Firestore)
-    if (file.size > 800 * 1024) {
-      toast.error('File is too large. Please select an image under 800KB.');
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File is too large. Please select an image under 5MB.');
       return;
     }
 
     setIsUploading(true);
     try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
+      const result = await storageService.uploadFile(
+        type === 'photo' ? 'avatars' : 'courses', // Using courses bucket for cover as fallback or we could add a covers bucket
+        `${user.id}-${Date.now()}-${file.name}`,
+        file
+      );
+
+      if (result.success) {
         if (type === 'photo') {
-          setEditData(prev => ({ ...prev, photoURL: base64String }));
+          setEditData(prev => ({ ...prev, photoURL: result.url }));
         } else {
-          setEditData(prev => ({ ...prev, coverURL: base64String }));
+          setEditData(prev => ({ ...prev, coverURL: result.url }));
         }
-        setIsUploading(false);
         toast.success(`${type === 'photo' ? 'Profile picture' : 'Cover photo'} uploaded! Click Save to persist changes.`);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error: any) {
       console.error('Error uploading file:', error);
-      toast.error('Failed to upload image.');
+      toast.error('Failed to upload image: ' + error.message);
+    } finally {
       setIsUploading(false);
     }
   };
@@ -975,7 +988,7 @@ const Profile: React.FC = () => {
     if (!user) return;
     setIsSaving(true);
     try {
-      await userService.updateUserProfile(user.uid, editData);
+      await userService.updateUserProfile(user.id, editData);
       await refreshProfile();
       setIsEditing(false);
       toast.success('Profile updated successfully!');
@@ -2147,7 +2160,7 @@ const Profile: React.FC = () => {
       <WithdrawalModal 
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
-        userId={user.uid}
+        userId={user.id}
         userEmail={user.email || ''}
         balance={profile.affiliateBalance || 0}
       />

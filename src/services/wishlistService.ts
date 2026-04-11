@@ -1,33 +1,30 @@
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { supabase } from '../supabase';
 
 const GUEST_WISHLIST_KEY = 'course_hunt_wishlist_guest';
 let currentUserId: string | null = null;
-let unsubscribe: (() => void) | null = null;
 
 export const wishlistService = {
   setUserId(userId: string | null) {
     if (currentUserId === userId) return;
     currentUserId = userId;
     
-    if (unsubscribe) {
-      unsubscribe();
-      unsubscribe = null;
-    }
-
     if (userId) {
-      const wishlistRef = doc(db, 'wishlists', userId);
-      getDoc(wishlistRef).then((docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          const items = data.items || [];
-          const userKey = `course_hunt_wishlist_${userId}`;
-          localStorage.setItem(userKey, JSON.stringify(items));
-          window.dispatchEvent(new Event('wishlist-updated'));
-        }
-      }).catch((error) => {
-        handleFirestoreError(error, OperationType.GET, `wishlists/${userId}`);
-      });
+      supabase
+        .from('wishlists')
+        .select('items')
+        .eq('userId', userId)
+        .single()
+        .then(({ data, error }) => {
+          if (data && !error) {
+            const items = data.items || [];
+            const userKey = `course_hunt_wishlist_${userId}`;
+            localStorage.setItem(userKey, JSON.stringify(items));
+            window.dispatchEvent(new Event('wishlist-updated'));
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching wishlist:', error);
+        });
     }
     
     window.dispatchEvent(new Event('wishlist-updated'));
@@ -74,14 +71,17 @@ export const wishlistService = {
       localStorage.setItem(userKey, JSON.stringify(items));
       
       try {
-        const wishlistRef = doc(db, 'wishlists', currentUserId);
-        await setDoc(wishlistRef, {
-          userId: currentUserId,
-          items: items,
-          updatedAt: new Date().toISOString()
-        });
+        const { error } = await supabase
+          .from('wishlists')
+          .upsert({
+            userId: currentUserId,
+            items: items,
+            updatedAt: new Date().toISOString()
+          }, { onConflict: 'userId' });
+        
+        if (error) throw error;
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `wishlists/${currentUserId}`);
+        console.error('Error saving wishlist:', error);
       }
     } else {
       localStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(items));

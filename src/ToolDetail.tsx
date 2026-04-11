@@ -119,7 +119,7 @@ const ToolDetail: React.FC = () => {
     try {
       const result = await toolService.addReview({
         tool_id: String(tool.id),
-        user_name: user.displayName || 'Anonymous',
+        user_name: user.user_metadata?.full_name || 'Anonymous',
         rating: newReview.rating,
         comment: newReview.comment,
         course_id: '' // Not a course review

@@ -1,65 +1,20 @@
-# Cheap - Digital Products & Services
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-Find practical digital products and services designed to help creators, freelancers, and brands grow online.
+# Run and deploy your AI Studio app
 
-## Features
+This contains everything you need to run your app locally.
 
-- **Course Marketplace**: Browse and purchase high-quality digital courses.
-- **Digital Tools**: Access a variety of tools to boost your productivity.
-- **VIP Membership**: Join our exclusive community for premium benefits.
-- **Affiliate Program**: Earn commissions by referring others.
-- **Real-time Updates**: Powered by Firebase for a seamless experience.
+View your app in AI Studio: https://ai.studio/apps/52ef2d58-7c71-4bfc-a7c7-a9e4c88631a1
 
-## Tech Stack
+## Run Locally
 
-- **Frontend**: React with TypeScript
-- **Styling**: Tailwind CSS
-- **Animations**: Framer Motion
-- **Backend**: Firebase (Firestore & Authentication)
-- **Build Tool**: Vite
-- **Deployment**: Vercel
+**Prerequisites:**  Node.js
 
-## Getting Started
 
-### Prerequisites
-
-- Node.js (v18 or higher)
-- npm or yarn
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/cheap.git
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
-## Environment Variables
-
-Create a `.env` file in the root directory and add your Firebase configuration:
-
-```env
-VITE_FIREBASE_API_KEY=your_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
-```
-
-## Deployment
-
-This project is optimized for deployment on **Vercel**. Simply connect your GitHub repository to Vercel and it will automatically deploy.
-
-## License
-
-This project is licensed under the MIT License.
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

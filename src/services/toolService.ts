@@ -1,137 +1,133 @@
-import { 
-  collection, 
-  getDocs, 
-  getDoc, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  orderBy,
-  serverTimestamp
-} from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, auth } from '../firebase';
+import { supabase } from '../supabase';
 import { Tool } from '../data/tools';
 import { Review } from '../data/courses';
 
-const TOOLS_COLLECTION = 'tools';
-const REVIEWS_COLLECTION = 'reviews';
+const TOOLS_TABLE = 'tools';
+const REVIEWS_TABLE = 'reviews';
 
 export const toolService = {
   async getTools(): Promise<Tool[]> {
     try {
-      const q = query(collection(db, TOOLS_COLLECTION), orderBy('title', 'asc'));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        ...doc.data() as any,
-        id: doc.id
-      })) as Tool[];
+      const { data, error } = await supabase
+        .from(TOOLS_TABLE)
+        .select('*')
+        .order('title', { ascending: true });
+      
+      if (error) throw error;
+      return data as Tool[];
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, TOOLS_COLLECTION);
+      console.error('Error fetching tools:', error);
       return [];
     }
   },
 
   async getToolById(id: string): Promise<Tool | undefined> {
-    const path = `${TOOLS_COLLECTION}/${id}`;
     try {
-      const docRef = doc(db, TOOLS_COLLECTION, id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return { ...docSnap.data(), id: docSnap.id } as Tool;
+      const { data, error } = await supabase
+        .from(TOOLS_TABLE)
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') return undefined;
+        throw error;
       }
-      return undefined;
+      return data as Tool;
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, path);
+      console.error('Error fetching tool by id:', error);
       return undefined;
     }
   },
 
   async updateTool(updatedTool: Tool) {
-    const path = `${TOOLS_COLLECTION}/${updatedTool.id}`;
     try {
       const { id, ...data } = updatedTool;
-      const docRef = doc(db, TOOLS_COLLECTION, id);
+      const { error } = await supabase
+        .from(TOOLS_TABLE)
+        .update({
+          ...data,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', id);
       
-      const sanitizedData = JSON.parse(JSON.stringify(data));
-      
-      await updateDoc(docRef, {
-        ...sanitizedData,
-        updatedAt: serverTimestamp()
-      });
-      return { error: null };
+      return { error };
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.error('Error updating tool:', error);
       return { error };
     }
   },
 
   async addTool(newTool: Omit<Tool, 'id'>) {
     try {
-      const sanitizedTool = JSON.parse(JSON.stringify(newTool));
+      const { data, error } = await supabase
+        .from(TOOLS_TABLE)
+        .insert({
+          ...newTool,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+        .select()
+        .single();
       
-      const docRef = await addDoc(collection(db, TOOLS_COLLECTION), {
-        ...sanitizedTool,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      return { id: docRef.id, error: null };
+      return { id: data?.id || null, error };
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, TOOLS_COLLECTION);
+      console.error('Error adding tool:', error);
       return { id: null, error };
     }
   },
 
   async deleteTool(id: string) {
-    const path = `${TOOLS_COLLECTION}/${id}`;
     try {
-      const docRef = doc(db, TOOLS_COLLECTION, id);
-      await deleteDoc(docRef);
-      return { error: null };
+      const { error } = await supabase
+        .from(TOOLS_TABLE)
+        .delete()
+        .eq('id', id);
+      return { error };
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, path);
+      console.error('Error deleting tool:', error);
       return { error };
     }
   },
 
   async getReviews(toolId: string): Promise<Review[]> {
     try {
-      const q = query(
-        collection(db, REVIEWS_COLLECTION), 
-        orderBy('created_at', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
-      const allReviews = querySnapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as unknown as Review[];
+      const { data, error } = await supabase
+        .from(REVIEWS_TABLE)
+        .select('*')
+        .eq('tool_id', toolId)
+        .order('created_at', { ascending: false });
       
-      return allReviews.filter(r => String(r.tool_id) === String(toolId));
+      if (error) throw error;
+      return data as unknown as Review[];
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, REVIEWS_COLLECTION);
+      console.error('Error fetching tool reviews:', error);
       return [];
     }
   },
 
   async addReview(review: Omit<Review, 'id' | 'created_at'> & { tool_id: string }) {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const newReviewData = {
         ...review,
-        uid: auth.currentUser?.uid || null,
-        created_at: new Date().toISOString(),
-        timestamp: serverTimestamp()
+        uid: user?.id || null,
+        created_at: new Date().toISOString()
       };
-      const docRef = await addDoc(collection(db, REVIEWS_COLLECTION), newReviewData);
-      const newReview: Review = {
-        ...newReviewData,
-        id: docRef.id
-      } as unknown as Review;
+      
+      const { data, error } = await supabase
+        .from(REVIEWS_TABLE)
+        .insert(newReviewData)
+        .select()
+        .single();
+
+      if (error) throw error;
 
       await this.updateToolStats(review.tool_id);
 
-      return { data: newReview, error: null };
+      return { data: data as unknown as Review, error: null };
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, REVIEWS_COLLECTION);
+      console.error('Error adding tool review:', error);
       return { data: null, error };
     }
   },
@@ -142,11 +138,15 @@ export const toolService = {
       const totalRating = reviews.reduce((acc, r) => acc + r.rating, 0);
       const averageRating = reviews.length > 0 ? Math.round((totalRating / reviews.length) * 10) / 10 : 0;
 
-      const toolRef = doc(db, TOOLS_COLLECTION, toolId);
-      await updateDoc(toolRef, {
-        rating: averageRating,
-        reviews: reviews.length
-      });
+      const { error } = await supabase
+        .from(TOOLS_TABLE)
+        .update({
+          rating: averageRating,
+          reviews: reviews.length
+        })
+        .eq('id', toolId);
+      
+      if (error) throw error;
     } catch (error) {
       console.error("Error updating tool stats:", error);
     }

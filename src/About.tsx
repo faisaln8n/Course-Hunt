@@ -64,7 +64,7 @@ export default function About() {
 
     setIsPurchasing(true);
     try {
-      const balance = await walletService.getBalance(user.uid);
+      const balance = await walletService.getBalance(user.id);
       const total = cartItems.reduce((acc, item) => acc + Number(item.price.replace('$', '')), 0);
 
       if (balance < total) {
@@ -75,7 +75,7 @@ export default function About() {
 
       // Purchase each course
       for (const item of cartItems) {
-        const result = await walletService.purchaseCourse(user.uid, String(item.id), Number(item.price.replace('$', '')), item.title);
+        const result = await walletService.purchaseCourse(user.id, String(item.id), Number(item.price.replace('$', '')), item.title);
         if (!result.success) {
           throw new Error(result.error || `Failed to purchase ${item.title}`);
         }
@@ -127,13 +127,13 @@ export default function About() {
             {user ? (
               <div className="flex items-center gap-4">
                 <Link to="/profile" className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200 hover:border-[#00E5FF] transition-all" style={{ textDecoration: 'none' }}>
-                  {user.photoURL ? (
-                    <img src={user.photoURL} alt={user.displayName || 'User'} className="w-6 h-6 rounded-full" />
+                  {user.user_metadata?.avatar_url ? (
+                    <img src={user.user_metadata.avatar_url} alt={user.user_metadata.full_name || 'User'} className="w-6 h-6 rounded-full" />
                   ) : (
                     <User className="w-5 h-5 text-slate-600" />
                   )}
                   <span className="text-sm font-bold text-slate-700 max-w-[100px] truncate">
-                    {user.displayName?.split(' ')[0] || 'User'}
+                    {user.user_metadata?.full_name?.split(' ')[0] || 'User'}
                   </span>
                 </Link>
               </div>

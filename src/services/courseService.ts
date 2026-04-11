@@ -1,188 +1,185 @@
-import { 
-  collection, 
-  getDocs, 
-  getDoc, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  orderBy,
-  Timestamp,
-  serverTimestamp
-} from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, auth } from '../firebase';
+import { supabase } from '../supabase';
 import { Course, Review } from '../data/courses';
 
-const COURSES_COLLECTION = 'courses';
-const REVIEWS_COLLECTION = 'reviews';
+const COURSES_TABLE = 'courses';
+const REVIEWS_TABLE = 'reviews';
 
 export const courseService = {
   async getCourses(): Promise<Course[]> {
     try {
-      const q = query(collection(db, COURSES_COLLECTION), orderBy('title', 'asc'));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs
-        .map(doc => ({
-          ...doc.data() as any,
-          id: doc.id
-        }))
+      const { data, error } = await supabase
+        .from(COURSES_TABLE)
+        .select('*')
+        .order('title', { ascending: true });
+      
+      if (error) throw error;
+      
+      return (data || [])
         .filter(course => course.title && course.image) as unknown as Course[];
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, COURSES_COLLECTION);
+      console.error('Error fetching courses:', error);
       return [];
     }
   },
 
   async getAllCoursesRaw(): Promise<Course[]> {
     try {
-      const q = query(collection(db, COURSES_COLLECTION), orderBy('title', 'asc'));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        ...doc.data() as any,
-        id: doc.id
-      })) as unknown as Course[];
+      const { data, error } = await supabase
+        .from(COURSES_TABLE)
+        .select('*')
+        .order('title', { ascending: true });
+      
+      if (error) throw error;
+      return data as unknown as Course[];
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, COURSES_COLLECTION);
+      console.error('Error fetching all courses raw:', error);
       return [];
     }
   },
 
   async getCourseById(id: string | number): Promise<Course | undefined> {
-    const path = `${COURSES_COLLECTION}/${id}`;
     try {
-      const docRef = doc(db, COURSES_COLLECTION, String(id));
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return { ...docSnap.data(), id: docSnap.id } as unknown as Course;
+      const { data, error } = await supabase
+        .from(COURSES_TABLE)
+        .select('*')
+        .eq('id', String(id))
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') return undefined;
+        throw error;
       }
-      return undefined;
+      return data as unknown as Course;
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, path);
+      console.error('Error fetching course by id:', error);
       return undefined;
     }
   },
 
   async updateCourse(updatedCourse: Course) {
-    const path = `${COURSES_COLLECTION}/${updatedCourse.id}`;
     try {
       const { id, ...data } = updatedCourse;
-      const docRef = doc(db, COURSES_COLLECTION, String(id));
+      const { error } = await supabase
+        .from(COURSES_TABLE)
+        .update({
+          ...data,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', String(id));
       
-      // Sanitize data to remove undefined values
-      const sanitizedData = JSON.parse(JSON.stringify(data));
-      
-      await updateDoc(docRef, {
-        ...sanitizedData,
-        updatedAt: serverTimestamp()
-      });
-      return { error: null };
+      return { error };
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.error('Error updating course:', error);
       return { error };
     }
   },
 
   async addCourse(newCourse: Omit<Course, 'id'>) {
     try {
-      // Sanitize data to remove undefined values
-      const sanitizedCourse = JSON.parse(JSON.stringify(newCourse));
+      const { data, error } = await supabase
+        .from(COURSES_TABLE)
+        .insert({
+          ...newCourse,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+        .select();
       
-      const docRef = await addDoc(collection(db, COURSES_COLLECTION), {
-        ...sanitizedCourse,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      const courseWithId = { ...newCourse, id: docRef.id } as unknown as Course;
-      return { data: [courseWithId], error: null };
+      return { data, error };
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, COURSES_COLLECTION);
+      console.error('Error adding course:', error);
       return { data: null, error };
     }
   },
 
   async deleteCourse(id: string | number) {
-    const path = `${COURSES_COLLECTION}/${id}`;
     try {
-      const docRef = doc(db, COURSES_COLLECTION, String(id));
-      await deleteDoc(docRef);
-      return { error: null };
+      const { error } = await supabase
+        .from(COURSES_TABLE)
+        .delete()
+        .eq('id', String(id));
+      return { error };
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, path);
+      console.error('Error deleting course:', error);
       return { error };
     }
   },
 
   async getReviews(courseId: string | number): Promise<Review[]> {
     try {
-      const q = query(
-        collection(db, REVIEWS_COLLECTION), 
-        orderBy('created_at', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
-      const allReviews = querySnapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as unknown as Review[];
+      const { data, error } = await supabase
+        .from(REVIEWS_TABLE)
+        .select('*')
+        .eq('course_id', String(courseId))
+        .order('created_at', { ascending: false });
       
-      return allReviews.filter(r => String(r.course_id) === String(courseId));
+      if (error) throw error;
+      return data as unknown as Review[];
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, REVIEWS_COLLECTION);
+      console.error('Error fetching reviews:', error);
       return [];
     }
   },
 
   async addReview(review: Omit<Review, 'id' | 'created_at'>) {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const newReviewData = {
         ...review,
-        uid: auth.currentUser?.uid || null,
-        created_at: new Date().toISOString(),
-        timestamp: serverTimestamp()
+        uid: user?.id || null,
+        created_at: new Date().toISOString()
       };
-      const docRef = await addDoc(collection(db, REVIEWS_COLLECTION), newReviewData);
-      const newReview: Review = {
-        ...newReviewData,
-        id: docRef.id
-      } as unknown as Review;
+      
+      const { data, error } = await supabase
+        .from(REVIEWS_TABLE)
+        .insert(newReviewData)
+        .select()
+        .single();
+
+      if (error) throw error;
 
       await this.updateCourseStats(review.course_id);
 
-      return { data: newReview, error: null };
+      return { data: data as unknown as Review, error: null };
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, REVIEWS_COLLECTION);
+      console.error('Error adding review:', error);
       return { data: null, error };
     }
   },
 
   async updateReview(reviewId: string, courseId: string | number, updates: Partial<Review>) {
-    const path = `${REVIEWS_COLLECTION}/${reviewId}`;
     try {
-      const docRef = doc(db, REVIEWS_COLLECTION, reviewId);
-      await updateDoc(docRef, {
-        ...updates,
-        updated_at: new Date().toISOString(),
-        timestamp: serverTimestamp()
-      });
+      const { error } = await supabase
+        .from(REVIEWS_TABLE)
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reviewId);
+
+      if (error) throw error;
 
       await this.updateCourseStats(courseId);
       return { error: null };
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.error('Error updating review:', error);
       return { error };
     }
   },
 
   async deleteReview(reviewId: string, courseId: string | number) {
-    const path = `${REVIEWS_COLLECTION}/${reviewId}`;
     try {
-      const docRef = doc(db, REVIEWS_COLLECTION, reviewId);
-      await deleteDoc(docRef);
+      const { error } = await supabase
+        .from(REVIEWS_TABLE)
+        .delete()
+        .eq('id', reviewId);
+
+      if (error) throw error;
 
       await this.updateCourseStats(courseId);
       return { error: null };
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, path);
+      console.error('Error deleting review:', error);
       return { error };
     }
   },
@@ -193,11 +190,15 @@ export const courseService = {
       const totalRating = reviews.reduce((acc, r) => acc + r.rating, 0);
       const averageRating = reviews.length > 0 ? Math.round((totalRating / reviews.length) * 10) / 10 : 0;
 
-      const courseRef = doc(db, COURSES_COLLECTION, String(courseId));
-      await updateDoc(courseRef, {
-        rating: averageRating,
-        reviews: reviews.length
-      });
+      const { error } = await supabase
+        .from(COURSES_TABLE)
+        .update({
+          rating: averageRating,
+          reviews: reviews.length
+        })
+        .eq('id', String(courseId));
+      
+      if (error) throw error;
     } catch (error) {
       console.error("Error updating course stats:", error);
     }

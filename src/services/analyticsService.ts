@@ -1,25 +1,13 @@
-import { 
-  collection, 
-  getDocs, 
-  addDoc, 
-  query, 
-  orderBy,
-  serverTimestamp,
-  Timestamp,
-  doc,
-  getDoc,
-  updateDoc
-} from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, auth } from '../firebase';
+import { supabase } from '../supabase';
 
-const CLICKS_COLLECTION = 'clicks';
+const CLICKS_TABLE = 'clicks';
 
 export interface ClickEvent {
   id: string;
   courseId?: string;
   toolId?: string;
   uid: string | null;
-  timestamp: Timestamp;
+  timestamp: string;
   trafficSource: string;
 }
 
@@ -31,14 +19,18 @@ export const analyticsService = {
       let source = urlParams.get('utm_source') || urlParams.get('ref') || 'Direct';
       
       if (source === 'Direct' && document.referrer) {
-        const referrer = new URL(document.referrer).hostname;
-        if (referrer.includes('facebook.com')) source = 'Facebook';
-        else if (referrer.includes('t.co') || referrer.includes('twitter.com')) source = 'Twitter';
-        else if (referrer.includes('instagram.com')) source = 'Instagram';
-        else if (referrer.includes('linkedin.com')) source = 'LinkedIn';
-        else if (referrer.includes('youtube.com')) source = 'YouTube';
-        else if (referrer.includes('google.com')) source = 'Google Search';
-        else source = `Referral: ${referrer}`;
+        try {
+          const referrer = new URL(document.referrer).hostname;
+          if (referrer.includes('facebook.com')) source = 'Facebook';
+          else if (referrer.includes('t.co') || referrer.includes('twitter.com')) source = 'Twitter';
+          else if (referrer.includes('instagram.com')) source = 'Instagram';
+          else if (referrer.includes('linkedin.com')) source = 'LinkedIn';
+          else if (referrer.includes('youtube.com')) source = 'YouTube';
+          else if (referrer.includes('google.com')) source = 'Google Search';
+          else source = `Referral: ${referrer}`;
+        } catch (e) {
+          source = 'Referral: Unknown';
+        }
       }
 
       // Check if this item has already been clicked in this session
@@ -47,9 +39,11 @@ export const analyticsService = {
         return;
       }
 
+      const { data: { user } } = await supabase.auth.getUser();
+
       const clickData: any = {
-        uid: auth.currentUser?.uid || null,
-        timestamp: serverTimestamp(),
+        uid: user?.id || null,
+        timestamp: new Date().toISOString(),
         trafficSource: source
       };
 
@@ -59,18 +53,27 @@ export const analyticsService = {
         clickData.toolId = String(id);
       }
 
-      await addDoc(collection(db, CLICKS_COLLECTION), clickData);
+      const { error } = await supabase
+        .from(CLICKS_TABLE)
+        .insert(clickData);
+      
+      if (error) throw error;
 
       // Update user lifetime clicks if logged in
-      if (auth.currentUser) {
-        const userRef = doc(db, 'users', auth.currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          const currentClicks = userData.lifetimeClicks || 0;
-          await updateDoc(userRef, {
-            lifetimeClicks: currentClicks + 1
-          });
+      if (user) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('lifetimeClicks')
+          .eq('uid', user.id)
+          .single();
+        
+        if (userData) {
+          await supabase
+            .from('users')
+            .update({
+              lifetimeClicks: (userData.lifetimeClicks || 0) + 1
+            })
+            .eq('uid', user.id);
         }
       }
 
@@ -79,21 +82,33 @@ export const analyticsService = {
       
       window.dispatchEvent(new Event('analytics-updated'));
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, CLICKS_COLLECTION);
+      console.error('Error recording click:', error);
     }
   },
 
   async getClicks(): Promise<any[]> {
-    const q = query(collection(db, CLICKS_COLLECTION), orderBy('timestamp', 'desc'));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    try {
+      const { data, error } = await supabase
+        .from(CLICKS_TABLE)
+        .select('*')
+        .order('timestamp', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching clicks:', error);
+      return [];
+    }
   },
 
   async getClickDataForChart(days: number = 7, courseId?: string | number) {
     try {
-      const q = query(collection(db, CLICKS_COLLECTION), orderBy('timestamp', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const clicks = querySnapshot.docs.map(doc => doc.data());
+      const { data: clicks, error } = await supabase
+        .from(CLICKS_TABLE)
+        .select('*')
+        .order('timestamp', { ascending: false });
+      
+      if (error) throw error;
 
       const data: Record<string, number> = {};
       const now = new Date();
@@ -106,7 +121,7 @@ export const analyticsService = {
 
       clicks.forEach(click => {
         if (!click.timestamp) return;
-        const clickDate = click.timestamp.toDate();
+        const clickDate = new Date(click.timestamp);
         const dateStr = clickDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         
         if (data[dateStr] !== undefined) {
@@ -118,19 +133,24 @@ export const analyticsService = {
 
       return Object.entries(data).map(([name, clicks]) => ({ name, clicks }));
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, CLICKS_COLLECTION);
+      console.error('Error fetching click data for chart:', error);
       return [];
     }
   },
 
   async getTopProducts(limitCount: number = 5) {
     try {
-      const querySnapshot = await getDocs(collection(db, CLICKS_COLLECTION));
-      const clicks = querySnapshot.docs.map(doc => doc.data());
+      const { data: clicks, error } = await supabase
+        .from(CLICKS_TABLE)
+        .select('courseId');
+      
+      if (error) throw error;
       
       const counts: Record<string, number> = {};
       clicks.forEach(click => {
-        counts[click.courseId] = (counts[click.courseId] || 0) + 1;
+        if (click.courseId) {
+          counts[click.courseId] = (counts[click.courseId] || 0) + 1;
+        }
       });
 
       return Object.entries(counts)
@@ -138,15 +158,18 @@ export const analyticsService = {
         .sort((a, b) => b.count - a.count)
         .slice(0, limitCount);
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, CLICKS_COLLECTION);
+      console.error('Error fetching top products:', error);
       return [];
     }
   },
 
   async getTrafficSourceStats() {
     try {
-      const querySnapshot = await getDocs(collection(db, CLICKS_COLLECTION));
-      const clicks = querySnapshot.docs.map(doc => doc.data());
+      const { data: clicks, error } = await supabase
+        .from(CLICKS_TABLE)
+        .select('trafficSource');
+      
+      if (error) throw error;
       
       const counts: Record<string, number> = {};
       clicks.forEach(click => {
@@ -158,7 +181,7 @@ export const analyticsService = {
         .map(([source, count]) => ({ source, count }))
         .sort((a, b) => b.count - a.count);
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, CLICKS_COLLECTION);
+      console.error('Error fetching traffic source stats:', error);
       return [];
     }
   }
